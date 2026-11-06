@@ -1,0 +1,27 @@
+name: ipguard
+
+services:
+  database:
+    image: postgres:17.11-alpine
+    container_name: ipguard-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-ipguard}
+      POSTGRES_USER: ${POSTGRES_USER:-ipguard}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set POSTGRES_PASSWORD in the root .env file}
+    ports:
+      - "${POSTGRES_PORT:-5432}:5432"
+    volumes:
+      - ipguard_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - pg_isready -U ${POSTGRES_USER:-ipguard} -d ${POSTGRES_DB:-ipguard}
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+volumes:
+  ipguard_postgres_data:
+    name: ipguard_postgres_data

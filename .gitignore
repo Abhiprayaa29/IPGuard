@@ -1,0 +1,65 @@
+# Environment files (never commit real credentials)
+.env
+.env.*
+!.env.example
+!**/.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+*.egg-info/
+
+# Node
+node_modules/
+dist/
+.vite/
+*.local
+
+# Logs and local databases
+logs/
+*.log
+*.pgdata/
+pgdata/
+postgres-data/
+secrets/
+
+# Editors and operating systems
+.idea/
+.vscode/
+.obsidian/
+**/.obsidian/
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Build and test artifacts
+coverage/
+playwright-report/
+test-results/
+ui_dump*.xml
+*_dump*.xml
+*.xml.dump
+
+# Android / Gradle
+.gradle/
+**/build/
+local.properties
+*.iml
+captures/
+.externalNativeBuild/
+.cxx/
+.kotlin/
+*.apk
+*.aab
+*.jks
+*.keystore
+*.p12
+*.pfx
