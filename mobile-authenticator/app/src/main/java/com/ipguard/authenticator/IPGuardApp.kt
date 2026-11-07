@@ -30,6 +30,7 @@ fun IPGuardApp(
                 onDone()
             }
         },
+        onApprovalError = { viewModel.reportApprovalHostUnavailable() },
         onTestSign = { activity: FragmentActivity ->
             val challenge = "IPGUARD_MANUAL_TEST_${System.currentTimeMillis()}".toByteArray(Charsets.UTF_8)
             viewModel.authenticateAndSign(activity, challenge)

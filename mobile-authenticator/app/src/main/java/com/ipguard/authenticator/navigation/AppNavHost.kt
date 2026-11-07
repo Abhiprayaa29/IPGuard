@@ -29,7 +29,8 @@ fun AppNavHost(
     onGenerateKey: () -> Unit = {},
     onDeleteKey: () -> Unit = {},
     onRefreshKey: () -> Unit = {},
-    onApproveSign: (FragmentActivity, () -> Unit) -> Unit = { _, onDone -> onDone() },
+    onApproveSign: (FragmentActivity, () -> Unit) -> Unit = { _, _ -> },
+    onApprovalError: () -> Unit = {},
     onTestSign: (FragmentActivity) -> Unit = {}
 ) {
     val goHome: () -> Unit = {
@@ -129,16 +130,14 @@ fun AppNavHost(
                 signingDiagnostic = uiState.signingDiagnostic,
                 onBack = { navController.navigateUp() },
                 onApprove = {
-                    if (activity != null) {
+                    if (activity == null) {
+                        onApprovalError()
+                    } else {
                         onApproveSign(activity) {
                             navController.navigate(
                                 AppDestination.Result.createRoute(PreviewResult.APPROVED)
                             )
                         }
-                    } else {
-                        navController.navigate(
-                            AppDestination.Result.createRoute(PreviewResult.APPROVED)
-                        )
                     }
                 },
                 onReject = {
@@ -165,7 +164,8 @@ fun AppNavHost(
                 outcome = result,
                 onHome = goHome,
                 onDeviceDetails = goToDeviceInformation,
-                onReviewAnother = goToRequest
+                onReviewAnother = goToRequest,
+                signingDiagnostic = uiState.signingDiagnostic
             )
         }
 
