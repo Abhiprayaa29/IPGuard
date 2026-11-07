@@ -117,17 +117,26 @@
      session_type: AUTHENTICATION
      client_origin: http://localhost:5173
      ```
-6. **Device Registration (Enrollment Flow):**
-   - Web menyediakan tab switch `"Register Device"`, menghasilkan QR type `ENROLLMENT`.
-   - Android Authenticator mendeteksi tipe `ENROLLMENT`, menampilkan prompt `"DEVICE ENROLLMENT — Enroll this device?"`.
-   - Pengguna menyetujui -> Hardware Keystore menandatangani payload kanonikal -> mengirim `POST /api/v1/auth/devices/register`.
-   - Backend memverifikasi tanda tangan DER X.509 dan mendaftarkan public key ke tabel `devices`.
+6. **Device Registration (Enrollment Flow) — BUKTI LIVE FISIK:**
+   - Pengguna membuka tab `"Register Device"` pada browser (`http://localhost:5173/login`).
+   - Android Authenticator pada Samsung Galaxy A54 5G (`SM-A546E`, Android 16) memindai QR code dan menampilkan prompt verifikasi lokal.
+   - Pengguna memasukkan PIN perangkat (DEVICE_CREDENTIAL) -> Android Keystore menandatangani payload kanonikal NIST P-256 -> mengirim `POST /api/v1/auth/devices/register`.
+   - Backend memverifikasi tanda tangan kriptografis dan mendaftarkan perangkat ke database PostgreSQL.
+   - **Bukti Database PostgreSQL (`devices` table):**
+     ```text
+     Device Name: Samsung SM-A546E
+     Model: SM-A546E (Android 16)
+     Security Level: TRUSTED_ENVIRONMENT (Hardware Isolated)
+     Public Key Fingerprint: 2C:3F:8A:95:91:FA:35:DF:7C:01:0A:87:19:7F:F2:85:44:22:E2:D4:7E:7E:1F:85:E5:98:07:E6:5B:F0:6F:6A
+     Status: ACTIVE
+     ```
+   - **Bukti Layar Android:** Menampilkan status `DEVICE REGISTERED — Device enrolled successfully` dengan verifikasi 200 OK.
 7. **Mobile Sign-In (Authentication Flow):**
    - Android Authenticator memverifikasi origin `http://localhost:5173`.
    - BiometricPrompt meminta PIN/fingerprint perangkat Samsung A54.
    - Keystore menandatangani payload kanonikal `session_token:nonce:origin:timestamp`.
    - Backend memverifikasi tanda tangan terhadap public key perangkat yang terdaftar di bawah `SELECT FOR UPDATE` row lock.
-   - Browser polling menerima status `APPROVED` dan menerbitkan access token secara aman.
+   - Browser polling menerima status `APPROVED` dan menampilkan kredensial perangkat yang terautentikasi.
 
 ---
 
@@ -149,10 +158,18 @@
 
 ## 7. Temuan & Perbaikan Ringan (Minor Fixes)
 
-Selama pengujian live runtime, ditemukan satu perbaikan konfigurasi ringan:
-- **CORS Preflight Headers:** Pada `backend/app/main.py`, header `allow_headers` sebelumnya hanya mengizinkan header standar, menyebabkan preflight `OPTIONS` ditolak saat frontend mengirim header kustom `X-Browser-Channel-Token` dan `X-Dev-Admin-Key`.
-  - *Perbaikan:* Ditambahkan `allow_methods=["GET", "POST", "OPTIONS"]` dan `allow_headers=["*"]`.
-  - *Verifikasi:* Preflight `OPTIONS` mengembalikan `HTTP/1.1 200 OK` dan seluruh 65 backend test tetap 100% lulus.
+Selama pengujian live runtime bersama perangkat fisik, ditemukan dan diperbaiki 3 hal:
+1. **CORS Preflight Headers:** Pada `backend/app/main.py`, header `allow_headers` sebelumnya hanya mengizinkan header standar, menyebabkan preflight `OPTIONS` ditolak saat frontend mengirim header kustom `X-Browser-Channel-Token` dan `X-Dev-Admin-Key`.
+   - *Perbaikan:* Ditambahkan `allow_methods=["GET", "POST", "OPTIONS"]` dan `allow_headers=["*"]`.
+   - *Verifikasi:* Preflight `OPTIONS` mengembalikan `HTTP/1.1 200 OK` dan seluruh 65 backend test tetap 100% lulus.
+2. **OkHttp Stale Connection Pool Over ADB Reverse Tunnel:**
+   - *Gejala:* Saat otorisasi perangkat di HP membutuhkan waktu >5 detik, Uvicorn keep-alive timeout menutup socket dari sisi host, namun socket di client Android tetap idle di ConnectionPool, menyebabkan `IOException: unexpected end of stream`.
+   - *Perbaikan:* Ditambahkan header `Connection: close` pada seluruh request mobile, diaktifkan `retryOnConnectionFailure(true)`, dan dikonfigurasi `ConnectionPool(0, 1, TimeUnit.NANOSECONDS)`. Server FastAPI Uvicorn juga dijalankan dengan `--timeout-keep-alive 60`.
+   - *Verifikasi:* Panggilan registrasi perangkat berjalan 100% stabil dengan status HTTP 201 Created.
+3. **React Polling Race Condition (UI Flickering):**
+   - *Gejala:* Tampilan web berkedip bergantian antara `Challenge Expired` dan `Authentication Approved` karena dua interval polling `setInterval` berjalan bersamaan setelah pergantian tab.
+   - *Perbaikan:* Ditambahkan `requestIdRef` pada `useQrAuth.ts` untuk mengabaikan respon async dari sesi lama, autoStart diset hanya berjalan sekali saat mount, dan setiap sesi baru langsung membersihkan timer sebelumnya secara deterministik.
+   - *Verifikasi:* Build `npm run build` berhasil 0 error dan polling berjalan tunggal tanpa tabrakan state.
 
 ---
 

@@ -28,7 +28,7 @@ export function QrAuthCard({ onSuccess }: QrAuthCardProps) {
     errorMessage,
     startSession,
     cancelSession,
-  } = useQrAuth(activeTab, true)
+  } = useQrAuth('AUTHENTICATION', true)
 
   const handleTabChange = (type: SessionType) => {
     setActiveTab(type)

@@ -1,8 +1,10 @@
 package com.ipguard.authenticator.network
 
+import android.util.Log
 import com.ipguard.authenticator.BuildConfig
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import okhttp3.ConnectionPool
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -111,9 +113,15 @@ class OkHttpAuthApiService(
         request: Request,
         parser: (JSONObject) -> T
     ): ApiResult<T> {
+        val preparedRequest = request.newBuilder()
+            .header("Connection", "close")
+            .build()
+        val url = preparedRequest.url.toString()
+        Log.d(TAG, "Executing request: ${preparedRequest.method} $url")
         return try {
-            client.newCall(request).execute().use { response ->
+            client.newCall(preparedRequest).execute().use { response ->
                 val bodyString = response.body?.string() ?: ""
+                Log.d(TAG, "Response code ${response.code} for $url: ${bodyString.take(200)}")
                 if (response.isSuccessful) {
                     val json = if (bodyString.isNotBlank()) JSONObject(bodyString) else JSONObject()
                     ApiResult.Success(parser(json))
@@ -122,8 +130,10 @@ class OkHttpAuthApiService(
                 }
             }
         } catch (e: IOException) {
+            Log.e(TAG, "Request to $url failed (IOException): ${e.message}", e)
             ApiResult.NetworkError("Network connection failed: ${e.message}", e)
         } catch (e: Exception) {
+            Log.e(TAG, "Request to $url failed (Exception): ${e.message}", e)
             ApiResult.NetworkError("Unexpected network failure: ${e.message}", e)
         }
     }
@@ -161,12 +171,15 @@ class OkHttpAuthApiService(
     }
 
     companion object {
+        private const val TAG = "IPGuardNetwork"
+
         fun defaultOkHttpClient(): OkHttpClient {
             return OkHttpClient.Builder()
-                .connectTimeout(10, TimeUnit.SECONDS)
-                .readTimeout(15, TimeUnit.SECONDS)
-                .writeTimeout(15, TimeUnit.SECONDS)
-                .retryOnConnectionFailure(false)
+                .connectTimeout(15, TimeUnit.SECONDS)
+                .readTimeout(20, TimeUnit.SECONDS)
+                .writeTimeout(20, TimeUnit.SECONDS)
+                .retryOnConnectionFailure(true)
+                .connectionPool(ConnectionPool(0, 1, TimeUnit.NANOSECONDS))
                 .build()
         }
     }
