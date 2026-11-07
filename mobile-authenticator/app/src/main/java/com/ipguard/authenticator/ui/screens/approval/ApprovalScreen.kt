@@ -9,6 +9,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.ipguard.authenticator.R
+import com.ipguard.authenticator.security.qr.QrSessionType
 import com.ipguard.authenticator.ui.components.AuthenticatorScreen
 import com.ipguard.authenticator.ui.components.CardDivider
 import com.ipguard.authenticator.ui.components.InformationCard
@@ -17,6 +18,7 @@ import com.ipguard.authenticator.ui.components.NoticeCard
 import com.ipguard.authenticator.ui.components.NoticeTone
 import com.ipguard.authenticator.ui.components.ScreenActions
 import com.ipguard.authenticator.ui.components.SectionTitle
+import com.ipguard.authenticator.ui.state.ActiveAuthSessionState
 import com.ipguard.authenticator.ui.state.AuthenticationPolicyState
 import com.ipguard.authenticator.ui.state.PreviewSignInRequest
 import com.ipguard.authenticator.ui.state.SigningDiagnosticState
@@ -28,6 +30,7 @@ import com.ipguard.authenticator.ui.theme.IPGuardTeal
 @Composable
 fun ApprovalScreen(
     request: PreviewSignInRequest,
+    activeSession: ActiveAuthSessionState = ActiveAuthSessionState(),
     authPolicy: AuthenticationPolicyState = AuthenticationPolicyState(),
     signingDiagnostic: SigningDiagnosticState = SigningDiagnosticState(),
     onBack: () -> Unit,
@@ -35,10 +38,43 @@ fun ApprovalScreen(
     onReject: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val isEnrollment = activeSession.payload?.type == QrSessionType.ENROLLMENT
+    val hasLiveSession = activeSession.payload != null
+
+    val eyebrow = if (isEnrollment) {
+        "ENROLLMENT APPROVAL"
+    } else {
+        stringResource(R.string.approval_eyebrow)
+    }
+
+    val title = if (isEnrollment) {
+        "Authorize device registration"
+    } else {
+        stringResource(R.string.approval_title)
+    }
+
+    val subtitle = if (isEnrollment) {
+        "Confirm registration of this device's public key with IPGuard backend."
+    } else {
+        stringResource(R.string.approval_subtitle)
+    }
+
+    val primaryActionLabel = if (isEnrollment) {
+        "Approve & Register Device"
+    } else {
+        stringResource(R.string.approval_primary_action)
+    }
+
+    val signingOpValue = if (isEnrollment) {
+        "ECDSA P-256 (Enrollment Registration)"
+    } else {
+        stringResource(R.string.approval_signing_operation_value)
+    }
+
     AuthenticatorScreen(
-        eyebrow = stringResource(R.string.approval_eyebrow),
-        title = stringResource(R.string.approval_title),
-        subtitle = stringResource(R.string.approval_subtitle),
+        eyebrow = eyebrow,
+        title = title,
+        subtitle = subtitle,
         modifier = modifier,
         onBack = onBack
     ) {
@@ -64,7 +100,7 @@ fun ApprovalScreen(
             )
             KeyValueRow(
                 label = stringResource(R.string.request_purpose_label),
-                value = stringResource(R.string.request_purpose_value),
+                value = if (isEnrollment) "Register Device Key & Trust Relationship" else stringResource(R.string.request_purpose_value),
                 showDivider = false
             )
         }
@@ -85,7 +121,7 @@ fun ApprovalScreen(
             )
             KeyValueRow(
                 label = stringResource(R.string.approval_signing_operation_label),
-                value = stringResource(R.string.approval_signing_operation_value),
+                value = signingOpValue,
                 showDivider = false
             )
         }
@@ -108,7 +144,11 @@ fun ApprovalScreen(
 
         Spacer(Modifier.height(14.dp))
         NoticeCard(
-            text = stringResource(R.string.approval_signing_note),
+            text = if (isEnrollment) {
+                "Approving will prompt for your device PIN or biometric to authorize signing the enrollment challenge."
+            } else {
+                stringResource(R.string.approval_signing_note)
+            },
             tone = NoticeTone.INFO
         )
         Spacer(Modifier.height(10.dp))
@@ -118,7 +158,7 @@ fun ApprovalScreen(
         )
         Spacer(Modifier.height(24.dp))
         ScreenActions(
-            primaryLabel = stringResource(R.string.approval_primary_action),
+            primaryLabel = primaryActionLabel,
             onPrimary = onApprove,
             secondaryLabel = stringResource(R.string.approval_secondary_action),
             onSecondary = onReject

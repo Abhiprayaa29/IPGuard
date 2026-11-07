@@ -11,7 +11,7 @@ import java.io.Closeable
 import java.util.concurrent.atomic.AtomicBoolean
 
 class QrCodeAnalyzer(
-    private val onQrCodeDetected: () -> Unit
+    private val onQrCodeDetected: (String) -> Unit
 ) : ImageAnalysis.Analyzer, Closeable {
 
     private val closed = AtomicBoolean(false)
@@ -37,9 +37,12 @@ class QrCodeAnalyzer(
             )
             scanner.process(inputImage)
                 .addOnSuccessListener { barcodes ->
-                    if (!closed.get() && barcodes.any { !it.rawValue.isNullOrBlank() }) {
-                        if (detected.compareAndSet(false, true)) {
-                            onQrCodeDetected()
+                    if (!closed.get()) {
+                        val validBarcode = barcodes.firstOrNull { !it.rawValue.isNullOrBlank() }
+                        if (validBarcode != null && !validBarcode.rawValue.isNullOrBlank()) {
+                            if (detected.compareAndSet(false, true)) {
+                                onQrCodeDetected(validBarcode.rawValue!!)
+                            }
                         }
                     }
                 }

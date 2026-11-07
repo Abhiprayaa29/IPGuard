@@ -341,4 +341,8 @@
     <string name="policy_explanation_credential">Device PIN / pattern / password is active as the primary signing authorizer. Fingerprint is not required.</string>
     <string name="policy_explanation_secure_unsupported">A secure lock screen exists, but device-credential CryptoObject signing requires Android 11 or newer. Configure a strong biometric or use a supported Android version.</string>
     <string name="policy_explanation_no_lock">No secure device lock screen found. A screen lock (PIN, pattern, or password) is required for IPGuard signing.</string>
+    <string name="scanner_qr_validated">QR code challenge validated successfully</string>
+    <string name="auth_request_enrollment_title">REGISTER DEVICE</string>
+    <string name="auth_request_enrollment_action">Register this device as authenticator</string>
+    <string name="auth_request_auth_action">Approve sign-in request</string>
 </resources>

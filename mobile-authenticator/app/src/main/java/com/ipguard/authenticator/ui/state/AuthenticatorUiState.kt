@@ -1,9 +1,11 @@
 package com.ipguard.authenticator.ui.state
 
+import com.ipguard.authenticator.security.qr.QrAuthPayload
+
 data class PreviewSignInRequest(
     val service: String = "IPGuard Console",
     val browser: String = "Chrome on Windows",
-    val origin: String = "localhost:5173",
+    val origin: String = "http://localhost:5173",
     val challenge: String = "ipguard_signin_challenge_m23b"
 )
 
@@ -44,6 +46,25 @@ data class SigningDiagnosticState(
     val errorMessage: String? = null
 )
 
+enum class AuthFlowStep {
+    IDLE,
+    PAYLOAD_VALIDATED,
+    AWAITING_USER_CONSENT,
+    AWAITING_DEVICE_AUTHENTICATION,
+    SIGNING,
+    SUBMITTING_BACKEND,
+    COMPLETED_APPROVED,
+    COMPLETED_REJECTED,
+    FAILED
+}
+
+data class ActiveAuthSessionState(
+    val step: AuthFlowStep = AuthFlowStep.IDLE,
+    val payload: QrAuthPayload? = null,
+    val statusMessage: String? = null,
+    val errorMessage: String? = null
+)
+
 data class AuthenticatorUiState(
     val deviceFacts: DeviceFacts,
     val previewRequest: PreviewSignInRequest = PreviewSignInRequest(),
@@ -51,5 +72,6 @@ data class AuthenticatorUiState(
     val maximumTrustedPhones: Int = 1,
     val keyDiagnostic: KeyDiagnosticState = KeyDiagnosticState(),
     val authPolicy: AuthenticationPolicyState = AuthenticationPolicyState(),
-    val signingDiagnostic: SigningDiagnosticState = SigningDiagnosticState()
+    val signingDiagnostic: SigningDiagnosticState = SigningDiagnosticState(),
+    val activeSession: ActiveAuthSessionState = ActiveAuthSessionState()
 )
