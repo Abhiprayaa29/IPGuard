@@ -164,6 +164,7 @@
 | **Unauthenticated Browser Polling** | Polling tanpa `X-Browser-Channel-Token` ditolak | **PASS** | `test_polling_without_channel_token_fails_when_protected` |
 | **User Cancelled / PIN Timeout** | Fail-closed state transition | **PASS** | `testClassifyUserCancelled` |
 | **Non-Exportable Keystore Key** | Private key tidak pernah diekspor dari TEE | **PASS** | `privateKey.encoded == null` invariant |
+| **Unregistered Device Sign-In** | Fail-closed gate: tolak otorisasi lokal jika key belum terinisialisasi | **PASS** | Uji fisik Samsung A54: menolak sign-in dengan pesan `"Device signing key is not initialized. Please register the key first"`, status `Request rejected`, `Authentication performed: No` |
 
 ---
 
