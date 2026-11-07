@@ -12,6 +12,7 @@ import com.ipguard.authenticator.security.DeviceKeyManager
 import com.ipguard.authenticator.security.DeviceKeyVerificationRunner
 import com.ipguard.authenticator.security.DeviceSigningAuthenticator
 import com.ipguard.authenticator.security.FullVerificationSuiteResult
+import com.ipguard.authenticator.security.SigningKeyPolicyViolationException
 import com.ipguard.authenticator.security.SigningOutcome
 import com.ipguard.authenticator.security.SigningResult
 import com.ipguard.authenticator.security.SigningResultPolicy
@@ -121,7 +122,27 @@ class AuthenticatorViewModel @JvmOverloads constructor(
 
     fun generateSigningKey(requireUserAuth: Boolean = true) {
         try {
+            if (keyManager.hasSigningKey()) {
+                throw SigningKeyPolicyViolationException(
+                    getString(R.string.key_generate_requires_rotation)
+                )
+            }
             keyManager.generateSigningKey(requireUserAuth)
+            refreshAll()
+        } catch (e: Throwable) {
+            _uiState.update { current ->
+                current.copy(
+                    keyDiagnostic = current.keyDiagnostic.copy(
+                        errorMessage = "${e.javaClass.simpleName}: ${e.message}"
+                    )
+                )
+            }
+        }
+    }
+
+    fun regenerateSigningKey(requireUserAuth: Boolean = true) {
+        try {
+            keyManager.rotateSigningKey(requireUserAuth)
             refreshAll()
         } catch (e: Throwable) {
             _uiState.update { current ->
@@ -236,7 +257,9 @@ class AuthenticatorViewModel @JvmOverloads constructor(
     }
 
     fun runVerificationSuite(requireUserAuth: Boolean = true): FullVerificationSuiteResult {
-        val result = DeviceKeyVerificationRunner.runAll(keyManager, requireUserAuth)
+        val result = DeviceKeyVerificationRunner.runAll(
+            requireUserAuthentication = requireUserAuth
+        )
         refreshAll()
         return result
     }

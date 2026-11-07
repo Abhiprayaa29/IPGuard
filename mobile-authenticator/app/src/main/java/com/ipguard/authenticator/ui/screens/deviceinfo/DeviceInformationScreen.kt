@@ -2,7 +2,14 @@ package com.ipguard.authenticator.ui.screens.deviceinfo
 
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.height
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
@@ -18,6 +25,11 @@ import com.ipguard.authenticator.ui.state.AuthenticatorUiState
 import com.ipguard.authenticator.ui.theme.IPGuardGold
 import com.ipguard.authenticator.ui.theme.IPGuardTeal
 
+private enum class PendingKeyAction {
+    REGENERATE,
+    DELETE
+}
+
 @Composable
 fun DeviceInformationScreen(
     uiState: AuthenticatorUiState,
@@ -26,6 +38,7 @@ fun DeviceInformationScreen(
     onHome: () -> Unit,
     modifier: Modifier = Modifier,
     onGenerateKey: () -> Unit = {},
+    onRegenerateKey: () -> Unit = {},
     onDeleteKey: () -> Unit = {},
     onRefreshKey: () -> Unit = {},
     onTestSign: () -> Unit = {}
@@ -33,6 +46,7 @@ fun DeviceInformationScreen(
     val keyState = uiState.keyDiagnostic
     val authPolicy = uiState.authPolicy
     val signingDiag = uiState.signingDiagnostic
+    var pendingKeyAction by remember { mutableStateOf<PendingKeyAction?>(null) }
 
     AuthenticatorScreen(
         eyebrow = stringResource(R.string.device_eyebrow),
@@ -210,11 +224,27 @@ fun DeviceInformationScreen(
                 Spacer(Modifier.height(10.dp))
             }
             ScreenActions(
-                primaryLabel = if (keyState.hasKey) "Regenerate Signing Key" else "Generate Signing Key",
-                onPrimary = onGenerateKey,
-                secondaryLabel = if (keyState.hasKey) "Delete Signing Key" else null,
-                onSecondary = if (keyState.hasKey) onDeleteKey else null,
-                tertiaryLabel = "Refresh All",
+                primaryLabel = if (keyState.hasKey) {
+                    stringResource(R.string.key_action_regenerate)
+                } else {
+                    stringResource(R.string.key_action_generate)
+                },
+                onPrimary = if (keyState.hasKey) {
+                    { pendingKeyAction = PendingKeyAction.REGENERATE }
+                } else {
+                    onGenerateKey
+                },
+                secondaryLabel = if (keyState.hasKey) {
+                    stringResource(R.string.key_action_delete)
+                } else {
+                    null
+                },
+                onSecondary = if (keyState.hasKey) {
+                    { pendingKeyAction = PendingKeyAction.DELETE }
+                } else {
+                    null
+                },
+                tertiaryLabel = stringResource(R.string.key_action_refresh),
                 onTertiary = onRefreshKey
             )
         }
@@ -253,6 +283,45 @@ fun DeviceInformationScreen(
             onPrimary = onOpenSecuritySettings,
             secondaryLabel = stringResource(R.string.device_secondary_action),
             onSecondary = onHome
+        )
+    }
+
+    pendingKeyAction?.let { action ->
+        val title = when (action) {
+            PendingKeyAction.REGENERATE -> stringResource(R.string.key_regenerate_confirm_title)
+            PendingKeyAction.DELETE -> stringResource(R.string.key_delete_confirm_title)
+        }
+        val message = when (action) {
+            PendingKeyAction.REGENERATE -> stringResource(R.string.key_regenerate_confirm_message)
+            PendingKeyAction.DELETE -> stringResource(R.string.key_delete_confirm_message)
+        }
+        val confirmLabel = when (action) {
+            PendingKeyAction.REGENERATE -> stringResource(R.string.key_regenerate_confirm_action)
+            PendingKeyAction.DELETE -> stringResource(R.string.key_delete_confirm_action)
+        }
+
+        AlertDialog(
+            onDismissRequest = { pendingKeyAction = null },
+            title = { Text(title) },
+            text = { Text(message) },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        pendingKeyAction = null
+                        when (action) {
+                            PendingKeyAction.REGENERATE -> onRegenerateKey()
+                            PendingKeyAction.DELETE -> onDeleteKey()
+                        }
+                    }
+                ) {
+                    Text(confirmLabel)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { pendingKeyAction = null }) {
+                    Text(stringResource(R.string.key_action_cancel))
+                }
+            }
         )
     }
 }

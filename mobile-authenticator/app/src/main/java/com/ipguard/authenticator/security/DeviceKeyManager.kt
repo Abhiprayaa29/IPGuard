@@ -15,9 +15,11 @@ import java.security.spec.X509EncodedKeySpec
 import java.util.Base64
 
 interface DeviceKeyManager {
+    val alias: String
     fun hasSigningKey(): Boolean
     fun generateSigningKey(requireUserAuthentication: Boolean = true): KeySecurityMetadata
     fun ensureSigningKey(requireUserAuthentication: Boolean = true): KeySecurityMetadata
+    fun rotateSigningKey(requireUserAuthentication: Boolean = true): KeySecurityMetadata
     fun getKeySecurityMetadata(): KeySecurityMetadata
     fun getExportedPublicKey(): ExportedPublicKey
     fun getPublicKey(): PublicKey
@@ -38,6 +40,9 @@ interface DeviceKeyManager {
 class AndroidKeystoreDeviceKeyManager(
     private val keyAlias: String = DeviceKeyManager.KEY_ALIAS
 ) : DeviceKeyManager {
+
+    override val alias: String
+        get() = keyAlias
 
     private val keyStore: KeyStore by lazy {
         KeyStore.getInstance(DeviceKeyManager.KEYSTORE_PROVIDER).apply {
@@ -108,9 +113,42 @@ class AndroidKeystoreDeviceKeyManager(
 
     override fun ensureSigningKey(requireUserAuthentication: Boolean): KeySecurityMetadata {
         if (hasSigningKey()) {
-            return getKeySecurityMetadata()
+            val metadata = getKeySecurityMetadata()
+            validateSigningKeyPolicy(metadata, requireUserAuthentication)
+            return metadata
         }
         return generateSigningKey(requireUserAuthentication)
+    }
+
+    override fun rotateSigningKey(requireUserAuthentication: Boolean): KeySecurityMetadata {
+        if (hasSigningKey() && !deleteSigningKey()) {
+            throw DeviceKeyException("Failed to delete the existing signing key before rotation.")
+        }
+        return generateSigningKey(requireUserAuthentication)
+    }
+
+    private fun validateSigningKeyPolicy(
+        metadata: KeySecurityMetadata,
+        requireUserAuthentication: Boolean
+    ) {
+        val publicKey = try {
+            getPublicKey()
+        } catch (_: Throwable) {
+            null
+        }
+        val violations = SigningKeyPolicyValidator.validate(
+            metadata = metadata,
+            requireUserAuthentication = requireUserAuthentication,
+            publicKey = publicKey,
+            apiLevel = Build.VERSION.SDK_INT
+        )
+
+        if (violations.isNotEmpty()) {
+            throw SigningKeyPolicyViolationException(
+                "Existing signing key '$keyAlias' is incompatible: ${violations.joinToString("; ")}. " +
+                    "Explicit key regeneration and device re-enrollment are required."
+            )
+        }
     }
 
     override fun getPublicKey(): PublicKey {

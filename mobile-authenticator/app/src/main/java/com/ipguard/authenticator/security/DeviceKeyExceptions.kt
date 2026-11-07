@@ -17,3 +17,7 @@ class DeviceLockScreenRequiredException(
 class KeySecurityViolationException(
     message: String
 ) : DeviceKeyException(message)
+
+class SigningKeyPolicyViolationException(
+    message: String
+) : DeviceKeyException(message)

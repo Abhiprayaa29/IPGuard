@@ -228,6 +228,18 @@
     <string name="device_notice">No device serial number, private key, or secret is displayed.</string>
     <string name="device_primary_action">Security settings</string>
     <string name="device_secondary_action">Back to start</string>
+    <string name="key_generate_requires_rotation">A signing key already exists. Use explicit regeneration after confirming the replacement.</string>
+    <string name="key_action_generate">Generate signing key</string>
+    <string name="key_action_regenerate">Regenerate signing key</string>
+    <string name="key_action_delete">Delete signing key</string>
+    <string name="key_action_refresh">Refresh all</string>
+    <string name="key_regenerate_confirm_title">Regenerate signing key?</string>
+    <string name="key_regenerate_confirm_message">This permanently replaces the current signing key. The existing public key will no longer match, so this device must be re-enrolled with the backend. This cannot be undone.</string>
+    <string name="key_regenerate_confirm_action">Regenerate</string>
+    <string name="key_delete_confirm_title">Delete signing key?</string>
+    <string name="key_delete_confirm_message">This permanently removes the device signing key. This device will be unable to sign until a new key is generated and enrolled. This cannot be undone.</string>
+    <string name="key_delete_confirm_action">Delete</string>
+    <string name="key_action_cancel">Cancel</string>
 
     <string name="settings_eyebrow">SECURITY</string>
     <string name="settings_title">Security settings</string>

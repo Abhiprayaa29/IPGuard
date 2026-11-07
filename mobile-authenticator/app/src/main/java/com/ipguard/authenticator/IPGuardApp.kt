@@ -22,6 +22,7 @@ fun IPGuardApp(
         navController = navController,
         uiState = uiState,
         onGenerateKey = { viewModel.generateSigningKey(requireUserAuth = true) },
+        onRegenerateKey = { viewModel.regenerateSigningKey(requireUserAuth = true) },
         onDeleteKey = { viewModel.deleteSigningKey() },
         onRefreshKey = { viewModel.refreshAll() },
         onApproveSign = { activity: FragmentActivity, onDone: () -> Unit ->

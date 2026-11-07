@@ -27,6 +27,7 @@ fun AppNavHost(
     uiState: AuthenticatorUiState,
     modifier: Modifier = Modifier,
     onGenerateKey: () -> Unit = {},
+    onRegenerateKey: () -> Unit = {},
     onDeleteKey: () -> Unit = {},
     onRefreshKey: () -> Unit = {},
     onApproveSign: (FragmentActivity, () -> Unit) -> Unit = { _, _ -> },
@@ -180,6 +181,7 @@ fun AppNavHost(
                 },
                 onHome = goHome,
                 onGenerateKey = onGenerateKey,
+                onRegenerateKey = onRegenerateKey,
                 onDeleteKey = onDeleteKey,
                 onRefreshKey = onRefreshKey,
                 onTestSign = {

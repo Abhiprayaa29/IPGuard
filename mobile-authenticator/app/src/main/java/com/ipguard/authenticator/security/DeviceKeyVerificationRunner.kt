@@ -20,10 +20,16 @@ data class FullVerificationSuiteResult(
 
 object DeviceKeyVerificationRunner {
 
+    const val TEST_KEY_ALIAS = "ipguard_device_signing_test_v1"
+
     fun runAll(
-        deviceKeyManager: DeviceKeyManager = AndroidKeystoreDeviceKeyManager(),
+        deviceKeyManager: DeviceKeyManager = AndroidKeystoreDeviceKeyManager(TEST_KEY_ALIAS),
         requireUserAuthentication: Boolean = true
     ): FullVerificationSuiteResult {
+        require(deviceKeyManager.alias != DeviceKeyManager.KEY_ALIAS) {
+            "DeviceKeyVerificationRunner refuses to run against the production signing key alias."
+        }
+
         val testResults = mutableListOf<TestScenarioResult>()
 
         var initialFingerprint: String? = null
@@ -116,7 +122,7 @@ object DeviceKeyVerificationRunner {
 
         // KA-04: Menutup dan membuka aplikasi (Persistence across manager reload)
         try {
-            val freshManager = AndroidKeystoreDeviceKeyManager(DeviceKeyManager.KEY_ALIAS)
+            val freshManager = AndroidKeystoreDeviceKeyManager(deviceKeyManager.alias)
             val exists = freshManager.hasSigningKey()
             val freshPubKey = freshManager.getExportedPublicKey()
             val isPersistent = exists && (freshPubKey.sha256Fingerprint == initialFingerprint)
