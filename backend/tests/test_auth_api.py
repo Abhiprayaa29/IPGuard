@@ -72,13 +72,13 @@ def test_create_authentication_session() -> None:
 def test_create_enrollment_session() -> None:
     response = client.post(
         "/api/v1/auth/sessions",
-        json={"session_type": "ENROLLMENT", "origin": "http://127.0.0.1:5173"},
+        json={"session_type": "ENROLLMENT", "origin": "http://localhost:5173"},
     )
     assert response.status_code == 201
     data = response.json()
 
     assert data["session_type"] == "ENROLLMENT"
-    assert data["client_origin"] == "http://127.0.0.1:5173"
+    assert data["client_origin"] == "http://localhost:5173"
     assert data["qr_payload"]["type"] == "ENROLLMENT"
 
 
@@ -480,8 +480,11 @@ def test_device_revocation_lifecycle() -> None:
         },
     )
 
-    # 2. List devices
-    list_res = client.get("/api/v1/auth/devices")
+    # 2. List devices with development administrative key
+    list_res = client.get(
+        "/api/v1/auth/devices",
+        headers={"X-Dev-Admin-Key": "ipguard-dev-admin-secret-key"},
+    )
     assert list_res.status_code == 200
     assert any(d["device_id"] == device_id for d in list_res.json())
 

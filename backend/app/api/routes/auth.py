@@ -1,6 +1,8 @@
 from fastapi import APIRouter, Depends, Header, Request, status
 from sqlalchemy.orm import Session
 
+from app.core.config import Settings, get_settings
+from app.core.errors import AppError
 from app.db.session import get_db
 from app.schemas.auth import (
     DeviceRegisterRequest,
@@ -26,13 +28,38 @@ from app.services.auth import (
 router = APIRouter()
 
 
+def require_dev_admin_access(
+    x_dev_admin_key: str | None = Header(default=None, alias="X-Dev-Admin-Key"),
+    settings: Settings = Depends(get_settings),
+) -> None:
+    """
+    Restrict device listing to explicitly isolated development environments
+    with mandatory administrative key authentication.
+    - In production environments, access is strictly forbidden (HTTP 403).
+    - In development and test environments, missing or invalid key returns HTTP 401.
+    """
+    if settings.app_env == "production":
+        raise AppError(
+            status_code=status.HTTP_403_FORBIDDEN,
+            code="endpoint_disabled_in_production",
+            message="Device registry inspection is strictly disabled in production environments.",
+        )
+
+    if not x_dev_admin_key or x_dev_admin_key != settings.dev_admin_key:
+        raise AppError(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            code="unauthorized_admin_access",
+            message="Valid X-Dev-Admin-Key is required to access the device registry.",
+        )
+
+
 @router.post(
     "/sessions",
     response_model=SessionResponse,
     status_code=status.HTTP_201_CREATED,
     summary="Create authentication or enrollment session challenge",
     responses={
-        400: {"model": ErrorResponse, "description": "Invalid session parameters."},
+        400: {"model": ErrorResponse, "description": "Invalid session parameters or untrusted origin."},
     },
 )
 def create_session(
@@ -41,14 +68,14 @@ def create_session(
     db: Session = Depends(get_db),
     origin: str | None = Header(default=None),
 ) -> SessionResponse:
-    client_origin = body.origin or origin or request.headers.get("referer") or "http://localhost:5173"
+    candidate_origin = body.origin or origin
     client_ip = request.client.host if request.client else None
     client_ua = request.headers.get("user-agent")
 
     return create_auth_session(
         db=db,
         request=body,
-        client_origin=client_origin,
+        candidate_origin=candidate_origin,
         client_user_agent=client_ua,
         client_ip=client_ip,
     )
@@ -152,9 +179,14 @@ def revoke_enrolled_device(
 @router.get(
     "/devices",
     response_model=list[DeviceResponse],
-    summary="List all enrolled devices",
+    summary="List all enrolled devices (Development/Test only)",
+    responses={
+        401: {"model": ErrorResponse, "description": "Unauthorized. Administrative key required."},
+        403: {"model": ErrorResponse, "description": "Forbidden. Disabled in production."},
+    },
 )
 def get_all_devices(
     db: Session = Depends(get_db),
+    _: None = Depends(require_dev_admin_access),
 ) -> list[DeviceResponse]:
     return list_devices(db=db)

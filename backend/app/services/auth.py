@@ -5,6 +5,7 @@ import uuid
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.core.config import get_settings
 from app.core.errors import AppError
 from app.models.auth import AuthSession, Device
 from app.schemas.auth import (
@@ -24,6 +25,7 @@ from app.services.crypto import (
     parse_and_validate_public_key,
     verify_ecdsa_signature,
 )
+from app.services.origin import validate_and_resolve_origin
 
 CHALLENGE_TIMEOUT_SECONDS = 60
 DEFAULT_POLL_INTERVAL_MS = 1500
@@ -32,15 +34,19 @@ DEFAULT_POLL_INTERVAL_MS = 1500
 def create_auth_session(
     db: Session,
     request: SessionCreateRequest,
-    client_origin: str,
+    candidate_origin: str | None = None,
     client_user_agent: str | None = None,
     client_ip: str | None = None,
 ) -> SessionResponse:
     """
     Create a new authentication or enrollment session with a cryptographically
-    secure nonce and strict 60-second expiration.
+    secure nonce, normalized and whitelisted trusted origin, and strict 60-second expiration.
     """
-    effective_origin = (request.origin or client_origin or "http://localhost:5173").rstrip("/")
+    settings = get_settings()
+    effective_origin = validate_and_resolve_origin(
+        candidate_origin=request.origin or candidate_origin,
+        trusted_origins=settings.trusted_origin_list,
+    )
     now = datetime.now(timezone.utc)
     expires_at = now + timedelta(seconds=CHALLENGE_TIMEOUT_SECONDS)
 
@@ -87,6 +93,7 @@ def create_auth_session(
 def get_auth_session_status(db: Session, session_token: str) -> SessionStatusResponse:
     """
     Retrieve session state with lazy expiration checking.
+    Uses non-locking read for polling efficiency.
     """
     session = db.scalar(
         select(AuthSession).where(AuthSession.session_token == session_token)
@@ -129,9 +136,12 @@ def mark_session_scanned(
     """
     Signal that the mobile authenticator scanned the QR code.
     Fails closed if the session is expired or not pending.
+    Uses row-level lock (SELECT FOR UPDATE) to ensure atomic state transition.
     """
     session = db.scalar(
-        select(AuthSession).where(AuthSession.session_token == session_token)
+        select(AuthSession)
+        .where(AuthSession.session_token == session_token)
+        .with_for_update()
     )
     if not session:
         raise AppError(
@@ -174,11 +184,14 @@ def register_device(db: Session, request: DeviceRegisterRequest) -> DeviceRespon
     """
     Register a new mobile device with its Android Keystore ECDSA P-256 public key.
     Requires proof-of-enrollment through an active unexpired ENROLLMENT session.
+    Uses row-level pessimistic locking (SELECT FOR UPDATE) to prevent race conditions.
     Fails closed if signature, curve, session, or canonical payload is invalid.
     """
-    # 1. Validate the enrollment session
+    # 1. Validate the enrollment session with exclusive row lock
     session = db.scalar(
-        select(AuthSession).where(AuthSession.session_token == request.session_token)
+        select(AuthSession)
+        .where(AuthSession.session_token == request.session_token)
+        .with_for_update()
     )
     if not session:
         raise AppError(
@@ -213,7 +226,7 @@ def register_device(db: Session, request: DeviceRegisterRequest) -> DeviceRespon
 
     # 2. Check for duplicate device ID or existing active device
     existing_device = db.scalar(
-        select(Device).where(Device.device_id == request.device_id)
+        select(Device).where(Device.device_id == request.device_id).with_for_update()
     )
     if existing_device and existing_device.status == "ACTIVE":
         raise AppError(
@@ -312,12 +325,15 @@ def verify_session_signature(
 ) -> SessionStatusResponse:
     """
     Verify ECDSA P-256 signature for an authentication session.
+    Uses row-level pessimistic locking (SELECT FOR UPDATE) to guarantee atomic single-use challenge consumption.
     Fails closed on any discrepancy: expiration, replay, payload mismatch,
     revoked device, or invalid cryptographic signature.
     """
-    # 1. Retrieve session
+    # 1. Retrieve session with exclusive row lock
     session = db.scalar(
-        select(AuthSession).where(AuthSession.session_token == session_token)
+        select(AuthSession)
+        .where(AuthSession.session_token == session_token)
+        .with_for_update()
     )
     if not session:
         raise AppError(
@@ -368,7 +384,7 @@ def verify_session_signature(
             message=f"Device '{request.device_id}' is revoked and cannot authenticate.",
         )
 
-    # 3. Canonical payload check
+    # 3. Canonical payload check (must match trusted origin bound to the session)
     expected_canonical_payload = build_canonical_payload(
         session_token=session.session_token,
         nonce=session.challenge_nonce,
@@ -398,7 +414,7 @@ def verify_session_signature(
             message="ECDSA signature verification failed.",
         )
 
-    # 5. Transition session to APPROVED
+    # 5. Transition session to APPROVED atomically in the locked transaction
     session.status = "APPROVED"
     session.device_id = device.id
     session.canonical_payload = request.canonical_payload
@@ -426,9 +442,10 @@ def verify_session_signature(
 def revoke_device(db: Session, device_id: str) -> DeviceResponse:
     """
     Revoke an active device, preventing any future authentications.
+    Uses row-level lock to ensure safe revocation.
     """
     device = db.scalar(
-        select(Device).where(Device.device_id == device_id)
+        select(Device).where(Device.device_id == device_id).with_for_update()
     )
     if not device:
         raise AppError(

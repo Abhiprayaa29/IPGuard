@@ -21,13 +21,24 @@ class Settings(BaseSettings):
     app_env: Literal["development", "test", "production"] = "development"
     api_v1_prefix: str = "/api/v1"
     database_url: str = Field(min_length=1)
-    cors_origins: str = "http://localhost:5173"
+    cors_origins: str = "http://localhost:5173,http://127.0.0.1:5173"
+    trusted_origins: str | None = None
+    dev_admin_key: str = "ipguard-dev-admin-secret-key"
 
     @property
     def cors_origin_list(self) -> list[str]:
         return [
             origin.strip()
             for origin in self.cors_origins.split(",")
+            if origin.strip()
+        ]
+
+    @property
+    def trusted_origin_list(self) -> list[str]:
+        raw = self.trusted_origins if self.trusted_origins else self.cors_origins
+        return [
+            origin.strip()
+            for origin in raw.split(",")
             if origin.strip()
         ]
 
