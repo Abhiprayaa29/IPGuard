@@ -1,6 +1,7 @@
 import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 
 import { AppShell } from '../components/layout/AppShell'
+import { QrLoginPage } from '../pages/auth/QrLoginPage'
 import { SystemStatusPage } from '../pages/system-status/SystemStatusPage'
 
 export function AppRouter() {
@@ -8,9 +9,11 @@ export function AppRouter() {
     <BrowserRouter>
       <Routes>
         <Route element={<AppShell />}>
-          <Route index element={<Navigate to="/system-status" replace />} />
+          <Route index element={<Navigate to="/login" replace />} />
+          <Route path="/login" element={<QrLoginPage />} />
+          <Route path="/auth" element={<Navigate to="/login" replace />} />
           <Route path="/system-status" element={<SystemStatusPage />} />
-          <Route path="*" element={<Navigate to="/system-status" replace />} />
+          <Route path="*" element={<Navigate to="/login" replace />} />
         </Route>
       </Routes>
     </BrowserRouter>
