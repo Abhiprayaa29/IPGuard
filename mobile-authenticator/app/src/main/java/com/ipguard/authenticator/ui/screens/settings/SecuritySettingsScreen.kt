@@ -14,16 +14,21 @@ import com.ipguard.authenticator.ui.components.NoticeCard
 import com.ipguard.authenticator.ui.components.NoticeTone
 import com.ipguard.authenticator.ui.components.ScreenActions
 import com.ipguard.authenticator.ui.components.SectionTitle
+import com.ipguard.authenticator.ui.state.AuthenticatorUiState
 import com.ipguard.authenticator.ui.theme.IPGuardGold
 import com.ipguard.authenticator.ui.theme.IPGuardTeal
 
 @Composable
 fun SecuritySettingsScreen(
+    uiState: AuthenticatorUiState,
     onBack: () -> Unit,
     onDeviceInformation: () -> Unit,
     onHome: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val authPolicy = uiState.authPolicy
+    val keyState = uiState.keyDiagnostic
+
     AuthenticatorScreen(
         eyebrow = stringResource(R.string.settings_eyebrow),
         title = stringResource(R.string.settings_title),
@@ -32,26 +37,26 @@ fun SecuritySettingsScreen(
         onBack = onBack
     ) {
         InformationCard {
-            SectionTitle(text = "AUTHENTICATION TIERS (M2.3-B)")
+            SectionTitle(text = stringResource(R.string.settings_policy_title))
             Spacer(Modifier.height(8.dp))
             KeyValueRow(
-                label = "Tier 1: Strong Biometric",
-                value = "Optional (Class 3 Hardware)",
+                label = stringResource(R.string.settings_primary_auth_label),
+                value = authPolicy.primaryAuthMethod,
                 valueColor = IPGuardTeal
             )
             KeyValueRow(
-                label = "Tier 2: Device Credential",
-                value = "Primary (PIN / Pattern / Password)",
-                valueColor = IPGuardTeal
-            )
-            KeyValueRow(
-                label = "Tier 3: Weak Biometric",
-                value = "Disallowed for Signing Keys",
+                label = stringResource(R.string.settings_biometric_route_label),
+                value = authPolicy.biometricStatus,
                 valueColor = IPGuardGold
             )
             KeyValueRow(
-                label = "Tier 4: ML Kit Face Gate",
-                value = "UX Presence Only (No Auth)",
+                label = stringResource(R.string.settings_credential_route_label),
+                value = authPolicy.credentialStatus,
+                valueColor = IPGuardTeal
+            )
+            KeyValueRow(
+                label = stringResource(R.string.settings_face_gate_label),
+                value = stringResource(R.string.settings_face_gate_value),
                 showDivider = false
             )
         }
@@ -62,17 +67,25 @@ fun SecuritySettingsScreen(
             Spacer(Modifier.height(8.dp))
             KeyValueRow(
                 label = stringResource(R.string.settings_method_label),
-                value = "Strong Biometric OR Device PIN",
+                value = authPolicy.primaryAuthMethod,
                 valueColor = IPGuardTeal
             )
             KeyValueRow(
                 label = stringResource(R.string.settings_key_label),
-                value = "ECDSA P-256 (TEE-backed)",
+                value = if (keyState.hasKey) {
+                    stringResource(R.string.settings_key_available_value)
+                } else {
+                    stringResource(R.string.settings_key_value)
+                },
                 valueColor = IPGuardTeal
             )
             KeyValueRow(
                 label = stringResource(R.string.settings_invalidation_label),
-                value = "Enabled for biometric changes",
+                value = if (keyState.hasKey) {
+                    stringResource(R.string.settings_invalidation_enabled_value)
+                } else {
+                    stringResource(R.string.settings_invalidation_value)
+                },
                 showDivider = false
             )
         }
@@ -117,7 +130,7 @@ fun SecuritySettingsScreen(
 
         Spacer(Modifier.height(14.dp))
         NoticeCard(
-            text = "Fingerprint is NOT mandatory. The app uses your device lock screen PIN/pattern as the primary cryptographic authorizer.",
+            text = authPolicy.policyExplanation,
             tone = NoticeTone.INFO
         )
         Spacer(Modifier.height(24.dp))

@@ -53,7 +53,7 @@ class AuthenticatorViewModel @JvmOverloads constructor(
             _uiState.update { current ->
                 current.copy(
                     authPolicy = AuthenticationPolicyState(
-                        primaryAuthMethod = policy.primaryAuthMethod.label,
+                        primaryAuthMethod = getString(policy.primaryAuthMethod.labelRes),
                         biometricStatus = policy.biometricStrongLabel,
                         credentialStatus = policy.deviceCredentialLabel,
                         policyExplanation = policy.explanation,
@@ -65,7 +65,10 @@ class AuthenticatorViewModel @JvmOverloads constructor(
             _uiState.update { current ->
                 current.copy(
                     authPolicy = current.authPolicy.copy(
-                        policyExplanation = "Policy evaluation error: ${e.message}"
+                        policyExplanation = getString(
+                            R.string.device_policy_evaluation_error,
+                            e.message ?: e.javaClass.simpleName
+                        )
                     )
                 )
             }
@@ -86,13 +89,13 @@ class AuthenticatorViewModel @JvmOverloads constructor(
                             curve = metadata.curve,
                             securityLevel = metadata.securityLevel.label,
                             userAuthentication = if (metadata.userAuthenticationRequired) {
-                                "Required (Strong Biometric or Device PIN)"
+                                getString(R.string.device_user_auth_required_value)
                             } else {
-                                "None (Direct Access)"
+                                getString(R.string.device_user_auth_none_value)
                             },
                             isNonExportable = metadata.isNonExportable,
                             fingerprint = exported.sha256Fingerprint,
-                            statusMessage = "Keystore key is active and ready",
+                            statusMessage = getString(R.string.device_key_active_status),
                             errorMessage = null
                         )
                     )
@@ -102,7 +105,7 @@ class AuthenticatorViewModel @JvmOverloads constructor(
                     current.copy(
                         keyDiagnostic = KeyDiagnosticState(
                             hasKey = false,
-                            statusMessage = "No key generated yet",
+                            statusMessage = getString(R.string.device_key_missing_status),
                             errorMessage = null
                         )
                     )
@@ -215,7 +218,11 @@ class AuthenticatorViewModel @JvmOverloads constructor(
                         _uiState.update { current ->
                             current.copy(
                                 signingDiagnostic = current.signingDiagnostic.copy(
-                                    statusMessage = outcome.message,
+                                    statusMessage = if (result is SigningResult.AttemptFailed) {
+                                        getString(R.string.signing_attempt_failed)
+                                    } else {
+                                        outcome.message
+                                    },
                                     errorMessage = null
                                 )
                             )

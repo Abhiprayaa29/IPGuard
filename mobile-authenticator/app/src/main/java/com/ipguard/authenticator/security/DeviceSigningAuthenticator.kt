@@ -7,6 +7,7 @@ import androidx.biometric.BiometricManager
 import androidx.biometric.BiometricPrompt
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.FragmentActivity
+import com.ipguard.authenticator.R
 import java.security.Signature
 import java.util.Base64
 
@@ -64,7 +65,8 @@ class DeviceSigningAuthenticator(
 
     fun createPromptInfo(
         title: String = "Approve IPGuard Signing",
-        subtitle: String = "Verify using device PIN, pattern, or biometric"
+        subtitle: String = "Verify using device PIN, pattern, or biometric",
+        negativeButtonText: String = "Cancel"
     ): BiometricPrompt.PromptInfo {
         val builder = BiometricPrompt.PromptInfo.Builder()
             .setTitle(title)
@@ -77,7 +79,7 @@ class DeviceSigningAuthenticator(
             )
         } else {
             builder.setAllowedAuthenticators(BiometricManager.Authenticators.BIOMETRIC_STRONG)
-            builder.setNegativeButtonText("Cancel")
+            builder.setNegativeButtonText(negativeButtonText)
         }
 
         return builder.build()
@@ -105,8 +107,8 @@ class DeviceSigningAuthenticator(
     fun authenticateAndSign(
         activity: FragmentActivity,
         challenge: ByteArray,
-        promptTitle: String = "Approve IPGuard Signing",
-        promptSubtitle: String = "Verify using device PIN, pattern, or biometric",
+        promptTitle: String,
+        promptSubtitle: String,
         onResult: (SigningResult) -> Unit
     ) {
         if (!DeviceAuthenticationPolicy.canUseDeviceCredentialCryptoObject()) {
@@ -116,8 +118,7 @@ class DeviceSigningAuthenticator(
                 onResult(
                     SigningResult.Error(
                         errorCode = SigningResult.ERROR_UNSUPPORTED_API,
-                        errorMessage = "Device-credential signing requires Android 11 or newer. " +
-                            "This device can only sign with an enrolled strong biometric."
+                        errorMessage = activity.getString(R.string.signing_error_unsupported_api)
                     )
                 )
                 return
@@ -125,14 +126,18 @@ class DeviceSigningAuthenticator(
         }
 
         val executor = ContextCompat.getMainExecutor(activity)
-        val promptInfo = createPromptInfo(promptTitle, promptSubtitle)
+        val promptInfo = createPromptInfo(
+            title = promptTitle,
+            subtitle = promptSubtitle,
+            negativeButtonText = activity.getString(R.string.action_cancel)
+        )
         val cryptoObject = try {
             createCryptoObject()
         } catch (e: KeyPermanentlyInvalidatedException) {
             onResult(
                 SigningResult.Error(
                     errorCode = SigningResult.ERROR_KEY_INVALIDATED,
-                    errorMessage = "The signing key was invalidated by a device credential change. Device re-enrollment is required."
+                    errorMessage = activity.getString(R.string.signing_error_key_invalidated)
                 )
             )
             return
@@ -140,7 +145,7 @@ class DeviceSigningAuthenticator(
             onResult(
                 SigningResult.Error(
                     errorCode = SigningResult.ERROR_CRYPTO_INIT_FAILED,
-                    errorMessage = "The signing key requires user authentication before use. Start a new approval attempt."
+                    errorMessage = activity.getString(R.string.signing_error_crypto_auth)
                 )
             )
             return
@@ -148,7 +153,10 @@ class DeviceSigningAuthenticator(
             onResult(
                 SigningResult.Error(
                     errorCode = SigningResult.ERROR_CRYPTO_INIT_FAILED,
-                    errorMessage = "Failed to initialize crypto object: ${e.message}"
+                    errorMessage = activity.getString(
+                        R.string.signing_error_crypto_init,
+                        e.message ?: e.javaClass.simpleName
+                    )
                 )
             )
             return

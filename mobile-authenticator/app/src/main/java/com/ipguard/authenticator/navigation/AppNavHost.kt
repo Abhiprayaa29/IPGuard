@@ -66,6 +66,7 @@ fun AppNavHost(
     ) {
         composable(AppDestination.Welcome.route) {
             WelcomeScreen(
+                uiState = uiState,
                 onStartSetup = {
                     navController.navigate(AppDestination.Registration.route)
                 },
@@ -194,6 +195,7 @@ fun AppNavHost(
 
         composable(AppDestination.SecuritySettings.route) {
             SecuritySettingsScreen(
+                uiState = uiState,
                 onBack = { navController.navigateUp() },
                 onDeviceInformation = goToDeviceInformation,
                 onHome = goHome

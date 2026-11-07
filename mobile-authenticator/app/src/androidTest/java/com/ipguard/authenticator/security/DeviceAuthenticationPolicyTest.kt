@@ -234,7 +234,7 @@ class DeviceAuthenticationPolicyTest {
     @Test
     fun testAUTH10_VerifyAuthenticationTypeClassification() {
         val policy = DeviceAuthenticationPolicy.evaluate(context)
-        println("PHYSICAL_EVIDENCE: AUTH-10 primary=${policy.primaryAuthMethod.label}")
+        println("PHYSICAL_EVIDENCE: AUTH-10 primary=${policy.primaryAuthMethod.label(context)}")
 
         when (policy.primaryAuthMethod) {
             DeviceAuthMethod.BIOMETRIC_STRONG -> assertEquals(
@@ -300,6 +300,6 @@ class DeviceAuthenticationPolicyTest {
                 policy.primaryAuthMethod
             )
         }
-        println("PHYSICAL_EVIDENCE: AUTH-12 primary=${policy.primaryAuthMethod.label}, strong=$strongStatus")
+        println("PHYSICAL_EVIDENCE: AUTH-12 primary=${policy.primaryAuthMethod.label(context)}, strong=$strongStatus")
     }
 }
