@@ -20,7 +20,7 @@ def parse_and_validate_public_key(
     """
     Parse a Base64-encoded X.509 SubjectPublicKeyInfo DER public key,
     validate that it is an EC key on the NIST P-256 (secp256r1) curve.
-    
+
     Returns a tuple of (EllipticCurvePublicKey, raw_der_bytes).
     Fails closed if the key format, type, or curve is invalid.
     """

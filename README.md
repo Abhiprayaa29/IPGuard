@@ -115,7 +115,7 @@ Official 5-Milestone Roadmap:
 | Milestone | Name | Status | Details |
 |---|---|:---:|---|
 | **M1** | Foundation & Architecture | **COMPLETE** | React frontend, FastAPI backend, PostgreSQL, Alembic, health probes, Pytest suite. |
-| **M2** | Authentication & Device Security | **IN PROGRESS** | **M2.0–M2.3-B Complete:** CameraX, ML Kit, Android Keystore P-256, BiometricPrompt + CryptoObject with Device Credential. **M2.4 Next:** QR payload parsing, backend enrollment & challenge signing. |
+| **M2** | Authentication & Device Security | **IN PROGRESS** | **M2.0–M2.3-B Complete:** CameraX, ML Kit, Android Keystore P-256, BiometricPrompt + CryptoObject with Device Credential. **M2.4-B Complete:** Backend Core Engine, PostgreSQL Schema, ECDSA P-256 verifier, pessimistic row-level locking & origin whitelisting. **M2.4-C Next:** Frontend QR display, polling & anti-QR-jacking. |
 | **M3** | Core Cryptography & Asset Protection | **NOT STARTED** | Digital asset encryption (AES-256-GCM / XChaCha20-Poly1305), Argon2id key derivation, access policies. |
 | **M4** | Integrity & Advanced Protection | **NOT STARTED** | Cryptographic hashing, robust steganographic watermarking, tamper-evidence auditing. |
 | **M5** | Integration, Testing & Release | **NOT STARTED** | End-to-end integration, security penetration audits, packaging, and production deployment. |
