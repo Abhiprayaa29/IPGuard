@@ -18,6 +18,9 @@ android {
         versionCode = 4
         versionName = "0.4.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
+        val defaultApiBase = System.getenv("IPGUARD_API_URL") ?: "http://127.0.0.1:8000/api/v1"
+        buildConfigField("String", "API_BASE_URL", "\"$defaultApiBase\"")
     }
 
     buildFeatures {
@@ -65,9 +68,11 @@ dependencies {
     implementation("androidx.compose.material:material-icons-core")
     implementation("androidx.compose.material3:material3")
     implementation("androidx.biometric:biometric:1.1.0")
+    implementation("com.squareup.okhttp3:okhttp:4.12.0")
 
     debugImplementation("androidx.compose.ui:ui-tooling")
     testImplementation("junit:junit:4.13.2")
+    testImplementation("org.json:json:20240303")
     androidTestImplementation("androidx.test.ext:junit:1.2.1")
     androidTestImplementation("androidx.test:runner:1.6.2")
 }
