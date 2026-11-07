@@ -54,6 +54,7 @@ sealed class SigningResult {
         const val ERROR_LOCAL_VERIFICATION_FAILED = -3
         const val ERROR_KEY_INVALIDATED = -4
         const val ERROR_PROMPT_UNAVAILABLE = -5
+        const val ERROR_UNSUPPORTED_API = -6
     }
 }
 
@@ -69,14 +70,14 @@ class DeviceSigningAuthenticator(
             .setTitle(title)
             .setSubtitle(subtitle)
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+        if (DeviceAuthenticationPolicy.canUseDeviceCredentialCryptoObject()) {
             builder.setAllowedAuthenticators(
                 BiometricManager.Authenticators.BIOMETRIC_STRONG or
                         BiometricManager.Authenticators.DEVICE_CREDENTIAL
             )
         } else {
-            @Suppress("DEPRECATION")
-            builder.setDeviceCredentialAllowed(true)
+            builder.setAllowedAuthenticators(BiometricManager.Authenticators.BIOMETRIC_STRONG)
+            builder.setNegativeButtonText("Cancel")
         }
 
         return builder.build()
@@ -108,6 +109,21 @@ class DeviceSigningAuthenticator(
         promptSubtitle: String = "Verify using device PIN, pattern, or biometric",
         onResult: (SigningResult) -> Unit
     ) {
+        if (!DeviceAuthenticationPolicy.canUseDeviceCredentialCryptoObject()) {
+            val strongBiometricStatus = BiometricManager.from(activity)
+                .canAuthenticate(BiometricManager.Authenticators.BIOMETRIC_STRONG)
+            if (strongBiometricStatus != BiometricManager.BIOMETRIC_SUCCESS) {
+                onResult(
+                    SigningResult.Error(
+                        errorCode = SigningResult.ERROR_UNSUPPORTED_API,
+                        errorMessage = "Device-credential signing requires Android 11 or newer. " +
+                            "This device can only sign with an enrolled strong biometric."
+                    )
+                )
+                return
+            }
+        }
+
         val executor = ContextCompat.getMainExecutor(activity)
         val promptInfo = createPromptInfo(promptTitle, promptSubtitle)
         val cryptoObject = try {

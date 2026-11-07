@@ -23,38 +23,43 @@ data class DeviceAuthenticationPolicySummary(
 
 object DeviceAuthenticationPolicy {
 
+    fun canUseDeviceCredentialCryptoObject(apiLevel: Int = Build.VERSION.SDK_INT): Boolean {
+        return apiLevel >= Build.VERSION_CODES.R
+    }
+
     fun evaluate(context: Context): DeviceAuthenticationPolicySummary {
         val biometricManager = BiometricManager.from(context)
         val keyguardManager = context.getSystemService(Context.KEYGUARD_SERVICE) as? KeyguardManager
 
         val isSecure = keyguardManager?.isDeviceSecure == true || keyguardManager?.isKeyguardSecure == true
+        val credentialCryptoSupported = canUseDeviceCredentialCryptoObject()
 
         val strongStatus = biometricManager.canAuthenticate(BiometricManager.Authenticators.BIOMETRIC_STRONG)
         val strongLabel = describeBiometricStatus(strongStatus)
 
-        val credentialStatus = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+        val credentialStatus = if (credentialCryptoSupported) {
             biometricManager.canAuthenticate(BiometricManager.Authenticators.DEVICE_CREDENTIAL)
         } else {
-            if (isSecure) BiometricManager.BIOMETRIC_SUCCESS else BiometricManager.BIOMETRIC_ERROR_NONE_ENROLLED
+            BiometricManager.BIOMETRIC_ERROR_UNSUPPORTED
         }
         val credentialLabel = describeCredentialStatus(credentialStatus, isSecure)
 
-        // Policy resolution:
-        // 1. If BIOMETRIC_STRONG is enrolled & ready -> BIOMETRIC_STRONG can be used.
-        // 2. If strong biometric is not available (e.g. broken sensor on A54), but device credential is secure -> DEVICE_CREDENTIAL is primary.
-        // 3. Otherwise -> NONE.
         val primaryMethod = when {
             strongStatus == BiometricManager.BIOMETRIC_SUCCESS -> DeviceAuthMethod.BIOMETRIC_STRONG
-            credentialStatus == BiometricManager.BIOMETRIC_SUCCESS || isSecure -> DeviceAuthMethod.DEVICE_CREDENTIAL
+            credentialCryptoSupported &&
+                (credentialStatus == BiometricManager.BIOMETRIC_SUCCESS || isSecure) ->
+                DeviceAuthMethod.DEVICE_CREDENTIAL
             else -> DeviceAuthMethod.NONE
         }
 
-        val explanation = when (primaryMethod) {
-            DeviceAuthMethod.BIOMETRIC_STRONG ->
+        val explanation = when {
+            primaryMethod == DeviceAuthMethod.BIOMETRIC_STRONG ->
                 "Class 3 Strong Biometric is active and configured as primary signing authorizer."
-            DeviceAuthMethod.DEVICE_CREDENTIAL ->
+            primaryMethod == DeviceAuthMethod.DEVICE_CREDENTIAL ->
                 "Device PIN/Pattern is active as primary signing authorizer. Fingerprint is not required (sensor unavailable or not enrolled)."
-            DeviceAuthMethod.NONE ->
+            isSecure && !credentialCryptoSupported ->
+                "A secure lock screen exists, but device-credential CryptoObject signing requires Android 11 or newer. Configure a strong biometric on this device or use a supported Android version."
+            else ->
                 "No secure device lock screen found. A screen lock (PIN, pattern, or password) is required for IPGuard signing."
         }
 
@@ -82,6 +87,9 @@ object DeviceAuthenticationPolicy {
     }
 
     private fun describeCredentialStatus(status: Int, isSecure: Boolean): String {
+        if (!canUseDeviceCredentialCryptoObject()) {
+            return "Unsupported for signing (requires Android 11+)"
+        }
         return if (status == BiometricManager.BIOMETRIC_SUCCESS || isSecure) {
             "Configured & Active (PIN/Pattern/Password)"
         } else {
