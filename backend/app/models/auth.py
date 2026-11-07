@@ -119,6 +119,11 @@ class AuthSession(Base):
         String(45),
         nullable=True,
     )
+    browser_channel_token_hash: Mapped[str | None] = mapped_column(
+        String(64),
+        nullable=True,
+        index=True,
+    )
     device_id: Mapped[uuid.UUID | None] = mapped_column(
         Uuid(as_uuid=True),
         ForeignKey("devices.id", ondelete="SET NULL"),

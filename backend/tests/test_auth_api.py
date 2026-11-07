@@ -84,9 +84,20 @@ def test_create_enrollment_session() -> None:
 
 def test_get_session_status() -> None:
     create_res = client.post("/api/v1/auth/sessions", json={"session_type": "AUTHENTICATION"})
-    token = create_res.json()["session_token"]
+    data_created = create_res.json()
+    token = data_created["session_token"]
+    channel_token = data_created["browser_channel_token"]
+    assert channel_token is not None
 
-    status_res = client.get(f"/api/v1/auth/sessions/{token}")
+    # Polling without channel token is forbidden
+    unauth_res = client.get(f"/api/v1/auth/sessions/{token}")
+    assert unauth_res.status_code == 403
+
+    # Authorized polling succeeds
+    status_res = client.get(
+        f"/api/v1/auth/sessions/{token}",
+        headers={"X-Browser-Channel-Token": channel_token},
+    )
     assert status_res.status_code == 200
     data = status_res.json()
     assert data["session_token"] == token
@@ -114,7 +125,11 @@ def test_scan_session_transitions_status() -> None:
     assert scan_res.json()["status"] == "SCANNED"
 
     # Verify polling reflects scanned status
-    status_res = client.get(f"/api/v1/auth/sessions/{token}")
+    channel_token = create_res.json()["browser_channel_token"]
+    status_res = client.get(
+        f"/api/v1/auth/sessions/{token}",
+        headers={"X-Browser-Channel-Token": channel_token},
+    )
     assert status_res.json()["status"] == "SCANNED"
 
 
@@ -165,7 +180,11 @@ def test_device_enrollment_full_lifecycle() -> None:
     assert len(dev_data["public_key_fingerprint"]) == 95
 
     # 5. Verify enrollment session is consumed (APPROVED)
-    poll_res = client.get(f"/api/v1/auth/sessions/{token}")
+    channel_token = sess_data["browser_channel_token"]
+    poll_res = client.get(
+        f"/api/v1/auth/sessions/{token}",
+        headers={"X-Browser-Channel-Token": channel_token},
+    )
     assert poll_res.json()["status"] == "APPROVED"
 
 
@@ -373,7 +392,11 @@ def test_authentication_session_full_lifecycle() -> None:
     assert verify_data["access_token"] is not None
 
     # 6. Check poll status
-    poll_res = client.get(f"/api/v1/auth/sessions/{auth_token}")
+    auth_channel_token = auth_sess["browser_channel_token"]
+    poll_res = client.get(
+        f"/api/v1/auth/sessions/{auth_token}",
+        headers={"X-Browser-Channel-Token": auth_channel_token},
+    )
     assert poll_res.json()["status"] == "APPROVED"
     assert poll_res.json()["access_token"] is not None
 
@@ -529,7 +552,11 @@ def test_session_expiration_enforcement() -> None:
         db.commit()
 
     # Polling should mark status as EXPIRED
-    poll_res = client.get(f"/api/v1/auth/sessions/{token}")
+    channel_token = sess["browser_channel_token"]
+    poll_res = client.get(
+        f"/api/v1/auth/sessions/{token}",
+        headers={"X-Browser-Channel-Token": channel_token},
+    )
     assert poll_res.status_code == 200
     assert poll_res.json()["status"] == "EXPIRED"
 

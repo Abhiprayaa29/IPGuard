@@ -1,5 +1,5 @@
-import { ShieldCheck } from 'lucide-react'
-import { Link, Outlet } from 'react-router-dom'
+import { Activity, QrCode, ShieldCheck } from 'lucide-react'
+import { Link, NavLink, Outlet } from 'react-router-dom'
 
 export function AppShell() {
   return (
@@ -20,9 +20,9 @@ export function AppShell() {
       <header className="relative z-20 border-b border-white/[0.06] bg-ip-navy-950/55 backdrop-blur-xl">
         <div className="mx-auto flex w-full max-w-6xl items-center justify-between gap-4 px-5 py-4 sm:px-8">
           <Link
-            to="/system-status"
+            to="/login"
             className="group flex items-center gap-3 rounded-xl"
-            aria-label="IPGuard system status home"
+            aria-label="IPGuard home"
           >
             <span className="relative grid size-10 place-items-center rounded-2xl border border-ip-teal-400/25 bg-ip-teal-400/[0.08] text-ip-teal-300 shadow-[0_0_32px_-10px_rgba(45,212,191,0.6)] transition group-hover:border-ip-teal-300/40">
               <ShieldCheck
@@ -45,13 +45,40 @@ export function AppShell() {
             </span>
           </Link>
 
+          {/* Navigation Links */}
+          <nav className="flex items-center gap-2">
+            <NavLink
+              to="/login"
+              className={({ isActive }) =>
+                `flex items-center gap-2 rounded-xl px-3 py-1.5 text-xs font-semibold transition ${
+                  isActive
+                    ? 'border border-ip-teal-400/30 bg-ip-teal-400/10 text-ip-teal-300 shadow-sm'
+                    : 'text-slate-400 hover:text-white hover:bg-white/5'
+                }`
+              }
+            >
+              <QrCode size={14} />
+              <span className="hidden sm:inline">QR Auth</span>
+            </NavLink>
+
+            <NavLink
+              to="/system-status"
+              className={({ isActive }) =>
+                `flex items-center gap-2 rounded-xl px-3 py-1.5 text-xs font-semibold transition ${
+                  isActive
+                    ? 'border border-ip-teal-400/30 bg-ip-teal-400/10 text-ip-teal-300 shadow-sm'
+                    : 'text-slate-400 hover:text-white hover:bg-white/5'
+                }`
+              }
+            >
+              <Activity size={14} />
+              <span className="hidden sm:inline">System Status</span>
+            </NavLink>
+          </nav>
+
           <div className="flex items-center gap-3">
-            <span className="hidden items-center gap-2 text-xs font-medium text-slate-400 sm:flex">
-              <span className="size-1.5 rounded-full bg-ip-teal-400" aria-hidden="true" />
-              System status
-            </span>
             <span className="rounded-full border border-ip-gold-400/20 bg-ip-gold-400/[0.06] px-3 py-1.5 text-[9px] font-semibold uppercase tracking-[0.2em] text-ip-gold-300">
-              Foundation / M1
+              Auth / M2.4-C
             </span>
           </div>
         </div>
@@ -61,11 +88,8 @@ export function AppShell() {
         <Outlet />
       </main>
 
-      <footer className="relative z-10 border-t border-white/[0.05]">
-        <div className="mx-auto flex w-full max-w-6xl flex-col gap-2 px-5 py-5 text-[10px] uppercase tracking-[0.16em] text-slate-600 sm:flex-row sm:items-center sm:justify-between sm:px-8">
-          <span>IPGuard secure digital asset protection</span>
-          <span>Readiness console · M0 + M1</span>
-        </div>
+      <footer className="relative z-10 border-t border-white/[0.05] bg-ip-navy-950/40 py-6 text-center text-xs text-slate-500 backdrop-blur-md">
+        <p>IPGuard Secure Digital Asset Protection • Milestone 2.4-C</p>
       </footer>
     </div>
   )
