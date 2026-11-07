@@ -1,4 +1,6 @@
 from datetime import datetime, timedelta, timezone
+import hashlib
+import secrets
 from typing import Literal
 import uuid
 
@@ -52,10 +54,13 @@ def create_auth_session(
 
     session_token = generate_secure_token(32)
     challenge_nonce = generate_secure_token(32)
+    browser_channel_token = generate_secure_token(32)
+    browser_channel_token_hash = hashlib.sha256(browser_channel_token.encode("utf-8")).hexdigest()
 
     session = AuthSession(
         session_token=session_token,
         challenge_nonce=challenge_nonce,
+        browser_channel_token_hash=browser_channel_token_hash,
         session_type=request.session_type,
         status="PENDING",
         client_origin=effective_origin,
@@ -87,12 +92,17 @@ def create_auth_session(
         created_at=session.created_at,
         expires_at=session.expires_at,
         poll_interval_ms=DEFAULT_POLL_INTERVAL_MS,
+        browser_channel_token=browser_channel_token,
     )
 
 
-def get_auth_session_status(db: Session, session_token: str) -> SessionStatusResponse:
+def get_auth_session_status(
+    db: Session,
+    session_token: str,
+    browser_channel_token: str | None = None,
+) -> SessionStatusResponse:
     """
-    Retrieve session state with lazy expiration checking.
+    Retrieve session state with lazy expiration checking and SEC-02 Anti QR-Jacking authorization.
     Uses non-locking read for polling efficiency.
     """
     session = db.scalar(
@@ -104,6 +114,22 @@ def get_auth_session_status(db: Session, session_token: str) -> SessionStatusRes
             code="session_not_found",
             message="Authentication session not found.",
         )
+
+    # SEC-02 Anti QR-Jacking / Shoulder-Surfing: Validate browser channel authorization
+    if session.browser_channel_token_hash:
+        if not browser_channel_token:
+            raise AppError(
+                status_code=403,
+                code="invalid_or_missing_browser_channel_token",
+                message="Valid X-Browser-Channel-Token header is required to poll this session.",
+            )
+        presented_hash = hashlib.sha256(browser_channel_token.encode("utf-8")).hexdigest()
+        if not secrets.compare_digest(presented_hash, session.browser_channel_token_hash):
+            raise AppError(
+                status_code=403,
+                code="invalid_or_missing_browser_channel_token",
+                message="Valid X-Browser-Channel-Token header is required to poll this session.",
+            )
 
     now = datetime.now(timezone.utc)
     if session.status in ("PENDING", "SCANNED") and now > session.expires_at:

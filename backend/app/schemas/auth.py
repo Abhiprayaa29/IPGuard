@@ -64,6 +64,10 @@ class SessionResponse(BaseModel):
     created_at: datetime
     expires_at: datetime
     poll_interval_ms: int = 1500
+    browser_channel_token: str | None = Field(
+        default=None,
+        description='Secure channel token for the browser session to authorize polling and prevent QR-jacking',
+    )
 
 
 class SessionStatusResponse(BaseModel):

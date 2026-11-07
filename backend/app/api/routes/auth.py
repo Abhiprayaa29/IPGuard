@@ -86,14 +86,20 @@ def create_session(
     response_model=SessionStatusResponse,
     summary="Get status of an authentication or enrollment session",
     responses={
+        403: {"model": ErrorResponse, "description": "Invalid or missing browser channel token."},
         404: {"model": ErrorResponse, "description": "Session not found."},
     },
 )
 def get_session(
     session_token: str,
+    x_browser_channel_token: str | None = Header(default=None, alias="X-Browser-Channel-Token"),
     db: Session = Depends(get_db),
 ) -> SessionStatusResponse:
-    return get_auth_session_status(db=db, session_token=session_token)
+    return get_auth_session_status(
+        db=db,
+        session_token=session_token,
+        browser_channel_token=x_browser_channel_token,
+    )
 
 
 @router.post(
