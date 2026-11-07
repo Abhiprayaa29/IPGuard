@@ -63,6 +63,7 @@ IPGuard/
 │   ├── app/
 │   │   ├── api/
 │   │   │   ├── routes/
+│   │   │   │   ├── auth.py
 │   │   │   │   ├── health.py
 │   │   │   │   └── system.py
 │   │   │   ├── router.py
@@ -74,28 +75,39 @@ IPGuard/
 │   │   ├── db/
 │   │   │   ├── migrations/
 │   │   │   │   ├── versions/
-│   │   │   │   │   └── 0001_initial.py
+│   │   │   │   │   ├── 0001_initial.py
+│   │   │   │   │   └── 0002_devices_and_auth_sessions.py
 │   │   │   │   ├── env.py
 │   │   │   │   └── script.py.mako
 │   │   │   ├── base.py
 │   │   │   ├── session.py
 │   │   │   └── __init__.py
 │   │   ├── models/
+│   │   │   ├── auth.py
 │   │   │   └── __init__.py
 │   │   ├── schemas/
+│   │   │   ├── auth.py
 │   │   │   ├── common.py
 │   │   │   └── __init__.py
 │   │   ├── services/
+│   │   │   ├── auth.py
+│   │   │   ├── crypto.py
 │   │   │   ├── health.py
+│   │   │   ├── origin.py
 │   │   │   └── __init__.py
 │   │   ├── main.py
 │   │   └── __init__.py
 │   ├── tests/
+│   │   ├── test_auth_api.py
+│   │   ├── test_concurrency_race.py
 │   │   ├── test_cors.py
+│   │   ├── test_crypto_verifier.py
 │   │   ├── test_database_error.py
 │   │   ├── test_database_health.py
 │   │   ├── test_database_unreachable.py
+│   │   ├── test_device_protection.py
 │   │   ├── test_health.py
+│   │   ├── test_origin_validation.py
 │   │   └── test_system_info.py
 │   ├── .env                 (local, ignored)
 │   ├── .env.example

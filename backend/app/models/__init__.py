@@ -1,1 +1,3 @@
-"""Domain models will be added here when their modules enter development."""
+from app.models.auth import AuthSession, Device
+
+__all__ = ["AuthSession", "Device"]

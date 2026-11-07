@@ -211,3 +211,21 @@ mobile-authenticator/app/src/androidTest/java/com/ipguard/authenticator/
 ```
 
 Build, lint, installation, and physical-device evidence are recorded in [M2_TEST_REPORT.md](M2_TEST_REPORT.md), [M2.3A_KEYSTORE_REPORT.md](M2.3A_KEYSTORE_REPORT.md), [M2.3A_SECURITY_REVIEW.md](M2.3A_SECURITY_REVIEW.md), and [M2.3B_AUTHENTICATION_REPORT.md](M2.3B_AUTHENTICATION_REPORT.md).
+
+---
+
+## 8. Milestone 2.4 Architecture — QR Authentication & Backend Core Engine
+
+Milestone 2.4 establishes the cryptographic bridge between the Android hardware authenticator and the IPGuard web management console:
+
+- **M2.4-A:** Architecture & Cryptographic Challenge-Response Design (Complete).
+- **M2.4-B:** Backend Core Engine & PostgreSQL Schema (Complete & Verified):
+  - Database schema: `devices` and `auth_sessions` with Alembic migration `0002_devices_and_auth_sessions`.
+  - Cryptographic engine (`app/services/crypto.py`): X.509 DER SubjectPublicKeyInfo parsing, curve NIST P-256 (`secp256r1`) enforcement, and `SHA256withECDSA` ASN.1 DER signature verification.
+  - Concurrency protection: PostgreSQL `SELECT ... FOR UPDATE` pessimistic row-level locking preventing duplicate consumption of single-use challenges.
+  - Origin normalization: RFC 6454 validation and strict whitelist resolution (`app/services/origin.py`).
+  - Protected device registry: `GET /api/v1/auth/devices` guarded by `X-Dev-Admin-Key` in development and strictly disabled in production (HTTP 403).
+- **M2.4-C:** Frontend QR Display, Polling Hook, and Anti QR-Jacking Channel Binding (`DESIGNED — IMPLEMENTATION PENDING (M2.4-C)`).
+- **M2.4-D:** Android Authenticator QR Parser & OkHttp Network Client Integration (Pending M2.4-C).
+
+Detailed API contracts and remediation verification are documented in [M2.4_API_CONTRACT.md](M2.4_API_CONTRACT.md) and [M2.4B_SECURITY_REMEDIATION_REPORT.md](M2.4B_SECURITY_REMEDIATION_REPORT.md).
