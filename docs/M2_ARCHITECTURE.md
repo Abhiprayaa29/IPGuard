@@ -225,7 +225,12 @@ Milestone 2.4 establishes the cryptographic bridge between the Android hardware 
   - Concurrency protection: PostgreSQL `SELECT ... FOR UPDATE` pessimistic row-level locking preventing duplicate consumption of single-use challenges.
   - Origin normalization: RFC 6454 validation and strict whitelist resolution (`app/services/origin.py`).
   - Protected device registry: `GET /api/v1/auth/devices` guarded by `X-Dev-Admin-Key` in development and strictly disabled in production (HTTP 403).
-- **M2.4-C:** Frontend QR Display, Polling Hook, and Anti QR-Jacking Channel Binding (`DESIGNED — IMPLEMENTATION PENDING (M2.4-C)`).
-- **M2.4-D:** Android Authenticator QR Parser & OkHttp Network Client Integration (Pending M2.4-C).
+- **M2.4-C:** Frontend QR Display, Polling Hook, and Anti QR-Jacking Channel Binding (Complete & Verified):
+  - Dynamic SVG QR code rendering via `qrcode.react` in React frontend.
+  - SEC-02 Anti QR-Jacking / Shoulder-Surfing protection: browser channel secret `browser_channel_token` held in ephemeral React memory, excluded from QR code, and validated on every polling tick via constant-time SHA-256 hash comparison in backend.
+  - Database schema: `browser_channel_token_hash` on `auth_sessions` via Alembic migration `0003_auth_browser_channel`.
+  - Comprehensive UI lifecycle states: `INITIAL`, `CREATING`, `READY`, `SCANNED`, `APPROVED`, `REJECTED`, `EXPIRED`, `ERROR`.
+  - Full test coverage: `test_browser_channel_security.py` and frontend production build verified.
+- **M2.4-D:** Android Authenticator QR Parser & OkHttp Network Client Integration (Ready to Start).
 
 Detailed API contracts and remediation verification are documented in [M2.4_API_CONTRACT.md](M2.4_API_CONTRACT.md) and [M2.4B_SECURITY_REMEDIATION_REPORT.md](M2.4B_SECURITY_REMEDIATION_REPORT.md).

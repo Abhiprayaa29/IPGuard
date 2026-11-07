@@ -23,6 +23,10 @@ IPGuard/
 │   │   │   ├── providers.tsx
 │   │   │   └── router.tsx
 │   │   ├── components/
+│   │   │   ├── auth/
+│   │   │   │   ├── QrAuthCard.tsx
+│   │   │   │   ├── QrCodeDisplay.tsx
+│   │   │   │   └── QrSessionTimer.tsx
 │   │   │   ├── layout/
 │   │   │   │   └── AppShell.tsx
 │   │   │   └── ui/
@@ -32,8 +36,11 @@ IPGuard/
 │   │   │       ├── StatusBadge.tsx
 │   │   │       └── StatusCard.tsx
 │   │   ├── hooks/
+│   │   │   ├── useQrAuth.ts
 │   │   │   └── useSystemStatus.ts
 │   │   ├── pages/
+│   │   │   ├── auth/
+│   │   │   │   └── QrLoginPage.tsx
 │   │   │   └── system-status/
 │   │   │       ├── EnvironmentPanel.tsx
 │   │   │       ├── ReadinessHero.tsx
@@ -41,10 +48,12 @@ IPGuard/
 │   │   │       └── SystemStatusPage.tsx
 │   │   ├── services/
 │   │   │   ├── api.ts
+│   │   │   ├── auth.ts
 │   │   │   └── systemStatus.ts
 │   │   ├── styles/
 │   │   │   └── index.css
 │   │   ├── types/
+│   │   │   ├── auth.ts
 │   │   │   └── system.ts
 │   │   ├── utils/
 │   │   │   ├── format.ts
@@ -76,7 +85,8 @@ IPGuard/
 │   │   │   ├── migrations/
 │   │   │   │   ├── versions/
 │   │   │   │   │   ├── 0001_initial.py
-│   │   │   │   │   └── 0002_devices_and_auth_sessions.py
+│   │   │   │   │   ├── 0002_devices_and_auth_sessions.py
+│   │   │   │   │   └── 0003_auth_browser_channel.py
 │   │   │   │   ├── env.py
 │   │   │   │   └── script.py.mako
 │   │   │   ├── base.py
@@ -99,6 +109,7 @@ IPGuard/
 │   │   └── __init__.py
 │   ├── tests/
 │   │   ├── test_auth_api.py
+│   │   ├── test_browser_channel_security.py
 │   │   ├── test_concurrency_race.py
 │   │   ├── test_cors.py
 │   │   ├── test_crypto_verifier.py
