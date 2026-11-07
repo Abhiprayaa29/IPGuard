@@ -1,7 +1,8 @@
 # IPGuard — Android Compatibility & Device Generalization Specification
 
 **Project:** IPGuard — Secure Digital Asset Protection  
-**Document Version:** 1.0.0  
+**Target Repository:** `https://github.com/Abhiprayaa29/IPGuard`  
+**Document Version:** 1.1.0  
 **Target Milestone:** Milestone 2 (Authentication & Device Security)  
 **Last Updated:** November 8, 2026  
 
@@ -9,21 +10,28 @@
 
 ## 1. Executive Overview
 
-IPGuard Mobile Authenticator is architected as a **device-agnostic Android application**. It is designed to run across diverse OEM implementations (Samsung, Google Pixel, Xiaomi, OnePlus, Motorola, etc.) adhering to the Android Open Source Project (AOSP) CDD (Compatibility Definition Document) security standards.
+The IPGuard Mobile Authenticator is architected as a **device-agnostic Android native security application**. It is designed to operate reliably across diverse Original Equipment Manufacturer (OEM) implementations (Samsung, Google Pixel, Xiaomi, OnePlus, Motorola, Sony, etc.) that comply with the Android Open Source Project (AOSP) Compatibility Definition Document (CDD) security standards.
 
-The application does not depend on manufacturer-specific APIs, proprietary SDKs, or hardcoded device models. Physical testing on the Samsung Galaxy A54 5G (`SM-A546E`, Android 16) serves as one reference validation target, while the codebase maintains strict adherence to generalized Android platform contracts.
+The application does **not** rely on manufacturer-proprietary SDKs, vendor-exclusive hardware hooks, or hardcoded device models. While physical end-to-end testing on a Samsung Galaxy A54 5G (`SM-A546E`, Android 16 / API 36) serves as our reference verification anchor, the codebase adheres strictly to generalized Android platform contracts.
 
 ---
 
 ## 2. Platform SDK & Runtime Baseline
 
-| Attribute | Configured Level | Target OS Version | Security Rationale |
+| Attribute | Configured Value | Target OS / Spec | Security & Operational Rationale |
 |---|---|---|---|
-| **`minSdkVersion`** | `28` | Android 9.0 (Pie) | Enforces hardware-backed Keymaster 4.0 / Keymint, modern biometric architectures, and strict TLS 1.3 / network security policies. Devices below API 28 lack robust TEE-backed biometric crypto-object binding. |
-| **`targetSdkVersion`** | `36` | Android 16 (Baklava) | Targets the latest platform security behaviors, modern permission models, updated photo/camera privacy boundaries, and strict foreground service requirements. |
+| **`minSdkVersion`** | `28` | Android 9.0 (Pie) | Mandates hardware-backed Keymaster 4.0 / Keymint, modern biometric architectures, and strict TLS 1.3 network security policies. |
+| **`targetSdkVersion`** | `36` | Android 16 (Baklava) | Targets current platform security behaviors, modern permission models, updated camera privacy boundaries, and strict foreground execution constraints. |
 | **`compileSdkVersion`** | `36` | Android 16 | Compiles against current Android SDK platform APIs and AndroidX libraries. |
-| **Java / JVM Target** | `Java 17` (JVM 17) | OpenJDK 17 | Aligned with Gradle 8.13 and Android Gradle Plugin 8.9+. |
-| **Kotlin Version** | `2.0+` | Jetpack Compose Compiler | Modern declarative UI engine with zero legacy XML view hierarchy dependencies. |
+| **`buildToolsVersion`** | `36.0.0` | Android Build Tools | Modern AAPT2 resource compiler and D8/R8 dexers. |
+| **Java / JVM Target** | `Java 17` (JVM 17) | OpenJDK 17 | Required by Gradle 8.13 and Android Gradle Plugin 8.13+. |
+| **Kotlin Version** | `2.2.21` | Jetpack Compose Compiler | Modern declarative UI engine with zero legacy XML view hierarchy dependencies. |
+| **Android Gradle Plugin** | `8.13.2` | Gradle 8.13 | Pinned build plugin ensuring deterministic reproducible builds. |
+| **AndroidX Biometric** | `1.1.0` | AndroidX Security | Standardized prompt layer abstracting OEM biometric variations. |
+| **CameraX Engine** | `1.6.2` | Camera2 Abstraction | Resilient rear QR scanning and front presence analysis. |
+| **Google ML Kit** | `16.1.7` (Face) / `17.3.0` (Barcode) | On-Device Vision Engine | Local, zero-network barcode decoding and face presence detection. |
+| **OkHttp Networking** | `4.12.0` | Square OkHttp | High-performance HTTP client with explicit connection pooling and timeout management. |
+| **Compose BOM** | `2025.12.01` | AndroidX Compose | Material 3 UI components, design tokens, and state flows. |
 
 ---
 
@@ -33,8 +41,10 @@ The application does not depend on manufacturer-specific APIs, proprietary SDKs,
 - **Key Algorithm:** `KeyProperties.KEY_ALGORITHM_EC` (Elliptic Curve Cryptography).
 - **Curve:** NIST P-256 (`secp256r1` / `prime256v1`).
 - **Signature Algorithm:** `SHA256withECDSA` (ECDSA with SHA-256 digest).
-- **Signature Encoding:** ASN.1 DER (Distinguished Encoding Rules), producing a 70–72 byte binary payload (typically 96 Base64 characters).
-- **Public Key Format:** X.509 `SubjectPublicKeyInfo` DER format (91 bytes binary, 124 Base64 characters).
+- **Signature Format:** Standard ASN.1 DER sequence:
+  $$\text{SEQUENCE} \{ r\ \text{INTEGER},\ s\ \text{INTEGER} \}$$
+  Raw binary size is typically **70 to 72 bytes**, which encodes to **96 Base64 characters**.
+- **Public Key Format:** X.509 `SubjectPublicKeyInfo` DER format (**91 bytes binary, 124 Base64 characters**).
 
 ### 3.2 Key Protection & Non-Exportability Invariant
 1. **Isolated Key Generation:** Private keys are generated directly inside the device's hardware security boundary (`AndroidKeyStore` provider).
@@ -61,25 +71,37 @@ Android devices present diverse biometric capabilities ranging from ultrasonic f
 ### 4.1 Modality Evaluation Ladder
 
 ```text
-[ Incoming Signing Request ]
-            │
-            ▼
-┌──────────────────────────────────────────────┐
-│ Evaluate BiometricManager & KeyguardManager  │
-└──────────────────────────────────────────────┘
-            │
-            ├─► BIOMETRIC_STRONG Available? (Class 3)
-            │     └─► Use BiometricPrompt with CryptoObject
-            │           ├─► Fingerprint Class 3
-            │           └─► 3D Face / Iris Class 3
-            │
-            ├─► BIOMETRIC_STRONG Not Available / Optical Face Class 2 Only?
-            │     └─► Fallback to DEVICE_CREDENTIAL (PIN / Pattern / Password)
-            │           └─► Authorized via Gatekeeper TEE
-            │
-            └─► No Secure Lock Screen Configured?
-                  └─► FAIL-CLOSED: Refuse Key Generation / Signing
-                        └─► Display: "Device secure lock screen required"
++-------------------------------------------------------------+
+|               Incoming Hardware Signing Request             |
++-------------------------------------------------------------+
+                               |
+                               v
++-------------------------------------------------------------+
+|    Evaluate BiometricManager & KeyguardManager Capabilities |
++-------------------------------------------------------------+
+         |                                           |
+         | Class 3 Strong Available                  | Class 2 Only or No Biometric
+         v                                           v
++------------------------------------+   +------------------------------------+
+|  BiometricPrompt with CryptoObject |   | Fallback to DEVICE_CREDENTIAL      |
+|  - Fingerprint (Class 3)           |   | - PIN / Pattern / Password         |
+|  - 3D Face / Iris (Class 3)        |   | - Authorized via Gatekeeper TEE    |
++------------------------------------+   +------------------------------------+
+                               |                         |
+                               +------------+------------+
+                                            |
+                                            v
+                         +------------------------------------+
+                         | Secure Lock Screen Configured?     |
+                         +------------------------------------+
+                               |                     |
+                               | Yes                 | No
+                               v                     v
+                         +------------+  +----------------------------+
+                         | Unlock Key |  | FAIL-CLOSED: Reject Auth   |
+                         | & Sign     |  | Throw DeviceLockScreen     |
+                         | Challenge  |  | RequiredException          |
+                         +------------+  +----------------------------+
 ```
 
 ### 4.2 Handling Weak Biometrics (Class 2 / Class 1)
@@ -93,8 +115,8 @@ Android devices present diverse biometric capabilities ranging from ultrasonic f
   ```
   Devices equipped solely with Class 2 face recognition seamlessly and securely route to **Device Credential (PIN / Pattern / Password)**, preventing spoofing bypasses.
 
-### 4.3 API Level Branching (Android 10 vs 11+)
-- **API 30+ (Android 11 to 16):** Fully supports `BIOMETRIC_STRONG or DEVICE_CREDENTIAL` alongside `CryptoObject`.
+### 4.3 API Level Compatibility
+- **API 30+ (Android 11 to 16):** Native platform support for `BIOMETRIC_STRONG or DEVICE_CREDENTIAL` with `CryptoObject`.
 - **API 28–29 (Android 9–10):** AOSP `BiometricPrompt` did not permit combining `DEVICE_CREDENTIAL` with `CryptoObject` in a single prompt. For API < 30, the policy verifies `BIOMETRIC_STRONG` directly, falling back to dedicated `KeyguardManager` challenge flows if biometrics are absent.
 
 ---
@@ -121,19 +143,19 @@ To ensure privacy and multi-device portability without privacy violations:
 
 ---
 
-## 6. Cross-Device Compatibility Test Matrix
+## 6. Device Compatibility & Verification Classification
 
-| Device Profile / Capability | Primary Auth Path | CryptoObject Authorization | Fail-Closed Fallback | Test Status |
-|---|---|---|---|---|
-| **Samsung Galaxy A54 5G** (Exynos 1380, Android 16) | Optical Fingerprint (Class 3) / PIN | Yes (TEE-backed ECDSA) | PIN / Pattern | **VERIFIED (Physical Device)** |
-| **Google Pixel 7 / 8 / 9** (Tensor, StrongBox) | Under-Display FP / Class 3 Face | Yes (StrongBox / Titan M2) | PIN / Pattern | **VERIFIED (Unit / Architecture)** |
-| **Device with 2D Camera Face Only** (Class 2) | PIN / Pattern / Password | Yes (via Gatekeeper TEE PIN) | Bypass Prohibited | **VERIFIED (Unit / Contract)** |
-| **Device with No Biometric Hardware** | PIN / Pattern / Password | Yes (via Gatekeeper TEE PIN) | Secure Lock Required | **VERIFIED (Unit / Contract)** |
-| **Unsecured Device** (No PIN / Swipe Only) | None | Blocked | `DeviceLockScreenRequiredException` | **VERIFIED (Unit / Negative Test)** |
-| **Unregistered Key Sign-In Attempt** | None | Blocked | `Request rejected — key not initialized` | **VERIFIED (Physical Device)** |
-| **Camera Sensor Unavailable / Disconnected** | None (Scanner) | N/A | Display error message, zero crash | **VERIFIED (Unit Test)** |
-| **Camera Permission Denied by User** | None (Scanner) | N/A | Graceful permission rationale banner | **VERIFIED (Compose Lifecycle)** |
-| **Network Disconnected / Server Offline** | N/A | Local signature succeeds | `NetworkError: connection failed` | **VERIFIED (Physical Device)** |
+To provide an honest and accurate view of compatibility across the Android ecosystem, we distinguish five verification tiers:
+
+| Device Profile / Platform | Hardware Isolation | Supported Modalities | Verification Classification |
+|---|---|---|:---:|
+| **Samsung Galaxy A54 5G (`SM-A546E`)**<br>(Exynos 1380, Android 16 / API 36) | Samsung Knox TEE / Keymint | Optical Fingerprint (Class 3), PIN, Pattern | :white_check_mark: **PHYSICALLY VERIFIED**<br>(Full Enrollment, Sign-In, and Negative Tests PASS) |
+| **Google Pixel 7 / 8 / 9**<br>(Tensor G2/G3/G4, Android 13–15 / API 33–35) | Titan M2 StrongBox Keymaster | Under-display FP, Class 3 3D Face, PIN, Pattern | :large_blue_diamond: **ARCHITECTURALLY SUPPORTED & UNIT TESTED** |
+| **Xiaomi / Redmi (MIUI / HyperOS)**<br>(Snapdragon / MediaTek, Android 10–14) | ARM TrustZone TEE | Side-mounted Fingerprint, PIN, Pattern | :large_blue_diamond: **ARCHITECTURALLY SUPPORTED & UNIT TESTED** |
+| **OnePlus / OPPO / Realme (ColorOS)**<br>(Snapdragon, Android 11–15) | Qualcomm / MediaTek TEE | In-display Fingerprint, PIN, Pattern | :large_blue_diamond: **ARCHITECTURALLY SUPPORTED & UNIT TESTED** |
+| **Android Virtual Device (AVD Emulator)**<br>(x86_64, API 28–36) | Software Keystore Emulation | Emulated Fingerprint gesture, PIN | :white_check_mark: **DEV & CI TESTED** |
+| **Legacy Android 9.0 Pie (API 28)** | Keymaster 4.0 TEE | Fingerprint (Class 3), Keyguard PIN | :large_blue_diamond: **ARCHITECTURALLY SUPPORTED** |
+| **Unlisted Commercial OEMs** | Varies by manufacturer | Conforming to AOSP CDD | :hourglass: **PENDING COMMUNITY VERIFICATION** |
 
 ---
 
