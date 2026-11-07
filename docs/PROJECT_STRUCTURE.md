@@ -181,7 +181,6 @@ IPGuard/
 │       ├── m2.0-build-probe.png
 │       ├── m2.1/              eleven physical-device screenshots
 │       ├── m2.2/              twelve physical-device camera/QR screenshots
-│       ├── m2.3a_welcome.png
 │       ├── m2.3a_device_info_live.png
 │       ├── m2.3a_key_generated.png
 │       ├── m2.3a_persistence_verified.png

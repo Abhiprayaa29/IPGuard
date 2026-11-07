@@ -22,6 +22,7 @@ fun IPGuardApp(
         navController = navController,
         uiState = uiState,
         onGenerateKey = { viewModel.generateSigningKey(requireUserAuth = true) },
+        onRegenerateKey = { viewModel.regenerateSigningKey(requireUserAuth = true) },
         onDeleteKey = { viewModel.deleteSigningKey() },
         onRefreshKey = { viewModel.refreshAll() },
         onApproveSign = { activity: FragmentActivity, onDone: () -> Unit ->
@@ -30,6 +31,7 @@ fun IPGuardApp(
                 onDone()
             }
         },
+        onApprovalError = { viewModel.reportApprovalHostUnavailable() },
         onTestSign = { activity: FragmentActivity ->
             val challenge = "IPGUARD_MANUAL_TEST_${System.currentTimeMillis()}".toByteArray(Charsets.UTF_8)
             viewModel.authenticateAndSign(activity, challenge)

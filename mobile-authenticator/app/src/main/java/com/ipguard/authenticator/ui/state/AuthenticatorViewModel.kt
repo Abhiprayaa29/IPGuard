@@ -5,13 +5,17 @@ import android.os.Build
 import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.AndroidViewModel
 import com.ipguard.authenticator.BuildConfig
+import com.ipguard.authenticator.R
 import com.ipguard.authenticator.security.AndroidKeystoreDeviceKeyManager
 import com.ipguard.authenticator.security.DeviceAuthenticationPolicy
 import com.ipguard.authenticator.security.DeviceKeyManager
 import com.ipguard.authenticator.security.DeviceKeyVerificationRunner
 import com.ipguard.authenticator.security.DeviceSigningAuthenticator
 import com.ipguard.authenticator.security.FullVerificationSuiteResult
+import com.ipguard.authenticator.security.SigningKeyPolicyViolationException
+import com.ipguard.authenticator.security.SigningOutcome
 import com.ipguard.authenticator.security.SigningResult
+import com.ipguard.authenticator.security.SigningResultPolicy
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
@@ -49,7 +53,7 @@ class AuthenticatorViewModel @JvmOverloads constructor(
             _uiState.update { current ->
                 current.copy(
                     authPolicy = AuthenticationPolicyState(
-                        primaryAuthMethod = policy.primaryAuthMethod.label,
+                        primaryAuthMethod = getString(policy.primaryAuthMethod.labelRes),
                         biometricStatus = policy.biometricStrongLabel,
                         credentialStatus = policy.deviceCredentialLabel,
                         policyExplanation = policy.explanation,
@@ -61,7 +65,10 @@ class AuthenticatorViewModel @JvmOverloads constructor(
             _uiState.update { current ->
                 current.copy(
                     authPolicy = current.authPolicy.copy(
-                        policyExplanation = "Policy evaluation error: ${e.message}"
+                        policyExplanation = getString(
+                            R.string.device_policy_evaluation_error,
+                            e.message ?: e.javaClass.simpleName
+                        )
                     )
                 )
             }
@@ -82,13 +89,13 @@ class AuthenticatorViewModel @JvmOverloads constructor(
                             curve = metadata.curve,
                             securityLevel = metadata.securityLevel.label,
                             userAuthentication = if (metadata.userAuthenticationRequired) {
-                                "Required (Strong Biometric or Device PIN)"
+                                getString(R.string.device_user_auth_required_value)
                             } else {
-                                "None (Direct Access)"
+                                getString(R.string.device_user_auth_none_value)
                             },
                             isNonExportable = metadata.isNonExportable,
                             fingerprint = exported.sha256Fingerprint,
-                            statusMessage = "Keystore key is active and ready",
+                            statusMessage = getString(R.string.device_key_active_status),
                             errorMessage = null
                         )
                     )
@@ -98,7 +105,7 @@ class AuthenticatorViewModel @JvmOverloads constructor(
                     current.copy(
                         keyDiagnostic = KeyDiagnosticState(
                             hasKey = false,
-                            statusMessage = "No key generated yet",
+                            statusMessage = getString(R.string.device_key_missing_status),
                             errorMessage = null
                         )
                     )
@@ -118,7 +125,27 @@ class AuthenticatorViewModel @JvmOverloads constructor(
 
     fun generateSigningKey(requireUserAuth: Boolean = true) {
         try {
+            if (keyManager.hasSigningKey()) {
+                throw SigningKeyPolicyViolationException(
+                    getString(R.string.key_generate_requires_rotation)
+                )
+            }
             keyManager.generateSigningKey(requireUserAuth)
+            refreshAll()
+        } catch (e: Throwable) {
+            _uiState.update { current ->
+                current.copy(
+                    keyDiagnostic = current.keyDiagnostic.copy(
+                        errorMessage = "${e.javaClass.simpleName}: ${e.message}"
+                    )
+                )
+            }
+        }
+    }
+
+    fun regenerateSigningKey(requireUserAuth: Boolean = true) {
+        try {
+            keyManager.rotateSigningKey(requireUserAuth)
             refreshAll()
         } catch (e: Throwable) {
             _uiState.update { current ->
@@ -153,9 +180,8 @@ class AuthenticatorViewModel @JvmOverloads constructor(
     ) {
         _uiState.update { current ->
             current.copy(
-                signingDiagnostic = current.signingDiagnostic.copy(
-                    statusMessage = "Awaiting user authentication...",
-                    errorMessage = null
+                signingDiagnostic = SigningDiagnosticState(
+                    statusMessage = getString(R.string.signing_awaiting_auth)
                 )
             )
         }
@@ -163,40 +189,57 @@ class AuthenticatorViewModel @JvmOverloads constructor(
         authenticator.authenticateAndSign(
             activity = activity,
             challenge = challenge,
-            promptTitle = "Approve IPGuard Sign-In",
-            promptSubtitle = "Authenticate with your device PIN or biometric",
+            promptTitle = getString(R.string.signing_prompt_title),
+            promptSubtitle = getString(R.string.signing_prompt_subtitle),
             onResult = { result ->
-                when (result) {
-                    is SigningResult.Success -> {
+                when (val outcome = SigningResultPolicy.classify(result)) {
+                    is SigningOutcome.Verified -> {
+                        val success = outcome.result
                         _uiState.update { current ->
                             current.copy(
                                 signingDiagnostic = SigningDiagnosticState(
                                     hasSigned = true,
                                     challenge = challenge.decodeToString(),
-                                    base64Signature = result.base64Signature,
-                                    authMethodLabel = result.authMethodLabel,
-                                    verifiedLocally = result.verifiedLocally,
-                                    statusMessage = "Signed & verified successfully with ${result.authMethodLabel}",
+                                    base64Signature = success.base64Signature,
+                                    authMethodLabel = success.authMethodLabel,
+                                    verifiedLocally = true,
+                                    statusMessage = getString(
+                                        R.string.signing_verified,
+                                        success.authMethodLabel
+                                    ),
                                     errorMessage = null
                                 )
                             )
                         }
-                        onSuccess(result)
+                        onSuccess(success)
                     }
-                    is SigningResult.Failed -> {
+
+                    is SigningOutcome.NonTerminal -> {
                         _uiState.update { current ->
                             current.copy(
                                 signingDiagnostic = current.signingDiagnostic.copy(
-                                    errorMessage = "Authentication failed. Incorrect credential."
+                                    statusMessage = if (result is SigningResult.AttemptFailed) {
+                                        getString(R.string.signing_attempt_failed)
+                                    } else {
+                                        outcome.message
+                                    },
+                                    errorMessage = null
                                 )
                             )
                         }
                     }
-                    is SigningResult.Error -> {
+
+                    is SigningOutcome.Terminal -> {
+                        val message = if (result is SigningResult.Cancelled) {
+                            getString(R.string.signing_cancelled)
+                        } else {
+                            getString(R.string.signing_failed, outcome.message, outcome.errorCode)
+                        }
                         _uiState.update { current ->
                             current.copy(
                                 signingDiagnostic = current.signingDiagnostic.copy(
-                                    errorMessage = "Authentication canceled or error: ${result.errorMessage} (code ${result.errorCode})"
+                                    statusMessage = null,
+                                    errorMessage = message
                                 )
                             )
                         }
@@ -206,8 +249,24 @@ class AuthenticatorViewModel @JvmOverloads constructor(
         )
     }
 
+    fun reportApprovalHostUnavailable() {
+        _uiState.update { current ->
+            current.copy(
+                signingDiagnostic = SigningDiagnosticState(
+                    errorMessage = getString(R.string.approval_host_unavailable)
+                )
+            )
+        }
+    }
+
+    private fun getString(resId: Int, vararg formatArgs: Any): String {
+        return getApplication<Application>().getString(resId, *formatArgs)
+    }
+
     fun runVerificationSuite(requireUserAuth: Boolean = true): FullVerificationSuiteResult {
-        val result = DeviceKeyVerificationRunner.runAll(keyManager, requireUserAuth)
+        val result = DeviceKeyVerificationRunner.runAll(
+            requireUserAuthentication = requireUserAuth
+        )
         refreshAll()
         return result
     }

@@ -1,10 +1,13 @@
 package com.ipguard.authenticator.security
 
 import android.os.Build
+import android.security.keystore.KeyPermanentlyInvalidatedException
+import android.security.keystore.UserNotAuthenticatedException
 import androidx.biometric.BiometricManager
 import androidx.biometric.BiometricPrompt
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.FragmentActivity
+import com.ipguard.authenticator.R
 import java.security.Signature
 import java.util.Base64
 
@@ -32,14 +35,28 @@ sealed class SigningResult {
         }
     }
 
-    data class Failed(
-        val reason: String = "Authentication attempt was rejected or failed."
+    data class AttemptFailed(
+        val message: String = "Authentication attempt failed. Try again."
+    ) : SigningResult()
+
+    data class Cancelled(
+        val errorCode: Int,
+        val message: String = "Authentication was cancelled."
     ) : SigningResult()
 
     data class Error(
         val errorCode: Int,
         val errorMessage: String
     ) : SigningResult()
+
+    companion object {
+        const val ERROR_CRYPTO_INIT_FAILED = -1
+        const val ERROR_SIGNING_FAILED = -2
+        const val ERROR_LOCAL_VERIFICATION_FAILED = -3
+        const val ERROR_KEY_INVALIDATED = -4
+        const val ERROR_PROMPT_UNAVAILABLE = -5
+        const val ERROR_UNSUPPORTED_API = -6
+    }
 }
 
 class DeviceSigningAuthenticator(
@@ -48,20 +65,21 @@ class DeviceSigningAuthenticator(
 
     fun createPromptInfo(
         title: String = "Approve IPGuard Signing",
-        subtitle: String = "Verify using device PIN, pattern, or biometric"
+        subtitle: String = "Verify using device PIN, pattern, or biometric",
+        negativeButtonText: String = "Cancel"
     ): BiometricPrompt.PromptInfo {
         val builder = BiometricPrompt.PromptInfo.Builder()
             .setTitle(title)
             .setSubtitle(subtitle)
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+        if (DeviceAuthenticationPolicy.canUseDeviceCredentialCryptoObject()) {
             builder.setAllowedAuthenticators(
                 BiometricManager.Authenticators.BIOMETRIC_STRONG or
                         BiometricManager.Authenticators.DEVICE_CREDENTIAL
             )
         } else {
-            @Suppress("DEPRECATION")
-            builder.setDeviceCredentialAllowed(true)
+            builder.setAllowedAuthenticators(BiometricManager.Authenticators.BIOMETRIC_STRONG)
+            builder.setNegativeButtonText(negativeButtonText)
         }
 
         return builder.build()
@@ -89,16 +107,58 @@ class DeviceSigningAuthenticator(
     fun authenticateAndSign(
         activity: FragmentActivity,
         challenge: ByteArray,
-        promptTitle: String = "Approve IPGuard Signing",
-        promptSubtitle: String = "Verify using device PIN, pattern, or biometric",
+        promptTitle: String,
+        promptSubtitle: String,
         onResult: (SigningResult) -> Unit
     ) {
+        if (!DeviceAuthenticationPolicy.canUseDeviceCredentialCryptoObject()) {
+            val strongBiometricStatus = BiometricManager.from(activity)
+                .canAuthenticate(BiometricManager.Authenticators.BIOMETRIC_STRONG)
+            if (strongBiometricStatus != BiometricManager.BIOMETRIC_SUCCESS) {
+                onResult(
+                    SigningResult.Error(
+                        errorCode = SigningResult.ERROR_UNSUPPORTED_API,
+                        errorMessage = activity.getString(R.string.signing_error_unsupported_api)
+                    )
+                )
+                return
+            }
+        }
+
         val executor = ContextCompat.getMainExecutor(activity)
-        val promptInfo = createPromptInfo(promptTitle, promptSubtitle)
+        val promptInfo = createPromptInfo(
+            title = promptTitle,
+            subtitle = promptSubtitle,
+            negativeButtonText = activity.getString(R.string.action_cancel)
+        )
         val cryptoObject = try {
             createCryptoObject()
+        } catch (e: KeyPermanentlyInvalidatedException) {
+            onResult(
+                SigningResult.Error(
+                    errorCode = SigningResult.ERROR_KEY_INVALIDATED,
+                    errorMessage = activity.getString(R.string.signing_error_key_invalidated)
+                )
+            )
+            return
+        } catch (e: UserNotAuthenticatedException) {
+            onResult(
+                SigningResult.Error(
+                    errorCode = SigningResult.ERROR_CRYPTO_INIT_FAILED,
+                    errorMessage = activity.getString(R.string.signing_error_crypto_auth)
+                )
+            )
+            return
         } catch (e: Throwable) {
-            onResult(SigningResult.Error(errorCode = -1, errorMessage = "Failed to initialize crypto object: ${e.message}"))
+            onResult(
+                SigningResult.Error(
+                    errorCode = SigningResult.ERROR_CRYPTO_INIT_FAILED,
+                    errorMessage = activity.getString(
+                        R.string.signing_error_crypto_init,
+                        e.message ?: e.javaClass.simpleName
+                    )
+                )
+            )
             return
         }
 
@@ -113,6 +173,15 @@ class DeviceSigningAuthenticator(
                     val signatureBytes = authorizedSignature.sign()
                     val base64Signature = Base64.getEncoder().encodeToString(signatureBytes)
                     val isVerified = verifySignature(challenge, signatureBytes)
+                    if (!isVerified) {
+                        onResult(
+                            SigningResult.Error(
+                                errorCode = SigningResult.ERROR_LOCAL_VERIFICATION_FAILED,
+                                errorMessage = "Signature was generated but failed local verification. Approval is not valid."
+                            )
+                        )
+                        return
+                    }
 
                     val authType = result.authenticationType
                     val authLabel = when (authType) {
@@ -131,26 +200,57 @@ class DeviceSigningAuthenticator(
                             base64Signature = base64Signature,
                             authenticationType = authType,
                             authMethodLabel = authLabel,
-                            verifiedLocally = isVerified
+                            verifiedLocally = true
                         )
                     )
                 } catch (e: Throwable) {
-                    onResult(SigningResult.Error(errorCode = -2, errorMessage = "Signing failed after authentication: ${e.message}"))
+                    onResult(
+                        SigningResult.Error(
+                            errorCode = SigningResult.ERROR_SIGNING_FAILED,
+                            errorMessage = "Signing failed after authentication: ${e.message}"
+                        )
+                    )
                 }
             }
 
             override fun onAuthenticationError(errorCode: Int, errString: CharSequence) {
                 super.onAuthenticationError(errorCode, errString)
-                onResult(SigningResult.Error(errorCode = errorCode, errorMessage = errString.toString()))
+                if (errorCode == BiometricPrompt.ERROR_USER_CANCELED ||
+                    errorCode == BiometricPrompt.ERROR_NEGATIVE_BUTTON ||
+                    errorCode == BiometricPrompt.ERROR_CANCELED
+                ) {
+                    onResult(
+                        SigningResult.Cancelled(
+                            errorCode = errorCode,
+                            message = errString.toString().ifBlank { "Authentication was cancelled." }
+                        )
+                    )
+                } else {
+                    onResult(
+                        SigningResult.Error(
+                            errorCode = errorCode,
+                            errorMessage = errString.toString().ifBlank { "Authentication failed with code $errorCode." }
+                        )
+                    )
+                }
             }
 
             override fun onAuthenticationFailed() {
                 super.onAuthenticationFailed()
-                onResult(SigningResult.Failed())
+                onResult(SigningResult.AttemptFailed())
             }
         }
 
         val prompt = BiometricPrompt(activity, executor, callback)
-        prompt.authenticate(promptInfo, cryptoObject)
+        try {
+            prompt.authenticate(promptInfo, cryptoObject)
+        } catch (e: Throwable) {
+            onResult(
+                SigningResult.Error(
+                    errorCode = SigningResult.ERROR_PROMPT_UNAVAILABLE,
+                    errorMessage = "Biometric prompt could not be started: ${e.message}"
+                )
+            )
+        }
     }
 }

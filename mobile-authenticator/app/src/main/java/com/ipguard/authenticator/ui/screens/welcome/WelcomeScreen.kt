@@ -30,6 +30,7 @@ import com.ipguard.authenticator.ui.components.NoticeTone
 import com.ipguard.authenticator.ui.components.PillTone
 import com.ipguard.authenticator.ui.components.ScreenActions
 import com.ipguard.authenticator.ui.components.SectionTitle
+import com.ipguard.authenticator.ui.state.AuthenticatorUiState
 import com.ipguard.authenticator.ui.theme.IPGuardGold
 import com.ipguard.authenticator.ui.theme.IPGuardMist
 import com.ipguard.authenticator.ui.theme.IPGuardMistMuted
@@ -37,6 +38,7 @@ import com.ipguard.authenticator.ui.theme.IPGuardOutline
 
 @Composable
 fun WelcomeScreen(
+    uiState: AuthenticatorUiState,
     onStartSetup: () -> Unit,
     onReviewRequest: () -> Unit,
     onOpenDeviceInformation: () -> Unit,
@@ -77,7 +79,11 @@ fun WelcomeScreen(
             )
             KeyValueRow(
                 label = stringResource(R.string.welcome_key_label),
-                value = stringResource(R.string.welcome_key_value)
+                value = if (uiState.keyDiagnostic.hasKey) {
+                    stringResource(R.string.welcome_key_created_value)
+                } else {
+                    stringResource(R.string.welcome_key_value)
+                }
             )
             KeyValueRow(
                 label = stringResource(R.string.welcome_face_label),

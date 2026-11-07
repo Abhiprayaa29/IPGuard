@@ -71,21 +71,21 @@ fun ApprovalScreen(
 
         Spacer(Modifier.height(14.dp))
         InformationCard {
-            SectionTitle(text = "AUTHORIZATION & SIGNING")
+            SectionTitle(text = stringResource(R.string.approval_shape_title))
             Spacer(Modifier.height(8.dp))
             KeyValueRow(
-                label = "Approval method",
+                label = stringResource(R.string.approval_method_label),
                 value = authPolicy.primaryAuthMethod,
                 valueColor = IPGuardTeal
             )
             KeyValueRow(
-                label = "Biometric route",
+                label = stringResource(R.string.approval_biometric_label),
                 value = authPolicy.biometricStatus,
                 valueColor = IPGuardGold
             )
             KeyValueRow(
-                label = "Signing operation",
-                value = "ECDSA P-256 (Keystore CryptoObject)",
+                label = stringResource(R.string.approval_signing_operation_label),
+                value = stringResource(R.string.approval_signing_operation_value),
                 showDivider = false
             )
         }
@@ -108,7 +108,7 @@ fun ApprovalScreen(
 
         Spacer(Modifier.height(14.dp))
         NoticeCard(
-            text = "Approving will launch your device PIN or biometric prompt. Upon authentication, your private key will sign the session challenge.",
+            text = stringResource(R.string.approval_signing_note),
             tone = NoticeTone.INFO
         )
         Spacer(Modifier.height(10.dp))
@@ -118,7 +118,7 @@ fun ApprovalScreen(
         )
         Spacer(Modifier.height(24.dp))
         ScreenActions(
-            primaryLabel = "Approve & Sign",
+            primaryLabel = stringResource(R.string.approval_primary_action),
             onPrimary = onApprove,
             secondaryLabel = stringResource(R.string.approval_secondary_action),
             onSecondary = onReject
