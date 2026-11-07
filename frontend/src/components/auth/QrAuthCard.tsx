@@ -268,7 +268,7 @@ export function QrAuthCard({ onSuccess }: QrAuthCardProps) {
             <div className="w-full text-center">
               <p className="text-xs text-slate-300 font-medium">
                 {activeTab === 'AUTHENTICATION'
-                  ? 'Scan with IPGuard Authenticator on Samsung A54'
+                  ? 'Scan with IPGuard Authenticator on your Android device'
                   : 'Enroll new Android Authenticator device'}
               </p>
               <p className="mt-1 text-[11px] text-slate-500">

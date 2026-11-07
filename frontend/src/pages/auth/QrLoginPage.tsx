@@ -100,7 +100,7 @@ export function QrLoginPage() {
                     <span className="font-semibold text-white">
                       Hardware Keystore Bound:
                     </span>{' '}
-                    Private keys are generated inside the Samsung A54 Secure Element / TEE and marked non-exportable.
+                    Private keys are generated inside the Android hardware Secure Element / TEE and marked non-exportable.
                   </div>
                 </li>
 

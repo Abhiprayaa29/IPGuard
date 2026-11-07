@@ -62,7 +62,7 @@ export function QrCodeDisplay({
               QR Code Scanned
             </h4>
             <p className="mt-1 text-xs text-slate-400">
-              Confirm authorization on your Samsung Galaxy A54...
+              Confirm authorization on your Android device...
             </p>
           </div>
         </div>
