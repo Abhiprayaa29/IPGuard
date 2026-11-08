@@ -1,4 +1,4 @@
-import { Activity, Lock, QrCode, ShieldCheck, Smartphone } from 'lucide-react'
+import { Activity, FolderLock, Lock, QrCode, ShieldCheck, Smartphone } from 'lucide-react'
 import { Link, NavLink, Outlet } from 'react-router-dom'
 
 export function AppShell() {
@@ -90,6 +90,20 @@ export function AppShell() {
             </NavLink>
 
             <NavLink
+              to="/assets"
+              className={({ isActive }) =>
+                `flex items-center gap-2 rounded-xl px-3 py-1.5 text-xs font-semibold transition ${
+                  isActive
+                    ? 'border border-ip-teal-400/30 bg-ip-teal-400/10 text-ip-teal-300 shadow-sm'
+                    : 'text-slate-400 hover:text-white hover:bg-white/5'
+                }`
+              }
+            >
+              <FolderLock size={14} />
+              <span className="hidden sm:inline">Asset Vault</span>
+            </NavLink>
+
+            <NavLink
               to="/system-status"
               className={({ isActive }) =>
                 `flex items-center gap-2 rounded-xl px-3 py-1.5 text-xs font-semibold transition ${
@@ -106,7 +120,7 @@ export function AppShell() {
 
           <div className="flex items-center gap-3">
             <span className="rounded-full border border-ip-gold-400/20 bg-ip-gold-400/[0.06] px-3 py-1.5 text-[9px] font-semibold uppercase tracking-[0.2em] text-ip-gold-300">
-              Auth & M3 Notes
+              Auth & M3 Vault
             </span>
           </div>
         </div>
