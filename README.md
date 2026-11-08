@@ -18,26 +18,27 @@ IPGuard is a secure digital asset protection platform designed to store, manage,
 2. [Project Purpose and Problem Statement](#2-project-purpose-and-problem-statement)
 3. [Key Features & Implementation Status](#3-key-features--implementation-status)
 4. [Architecture Overview](#4-architecture-overview)
-5. [Technology Stack](#5-technology-stack)
-6. [Repository Structure](#6-repository-structure)
-7. [Milestone Roadmap](#7-milestone-roadmap)
-8. [Prerequisites](#8-prerequisites)
-9. [Installation Guide](#9-installation-guide)
-10. [Environment Configuration](#10-environment-configuration)
-11. [PostgreSQL Setup & Migrations](#11-postgresql-setup--migrations)
-12. [Backend Setup & Execution](#12-backend-setup--execution)
-13. [Frontend Setup & Execution](#13-frontend-setup--execution)
-14. [Android Setup & Execution](#14-android-setup--execution)
-15. [Physical Android Device Connection (ADB Reverse)](#15-physical-android-device-connection-adb-reverse)
-16. [Running Automated Tests](#16-running-automated-tests)
-17. [Building the Application](#17-building-the-application)
-18. [API Documentation](#18-api-documentation)
-19. [Security Architecture & Threat Model](#19-security-architecture--threat-model)
-20. [Known Limitations & Architectural Boundaries](#20-known-limitations--architectural-boundaries)
-21. [Collaboration Guide](#21-collaboration-guide)
-22. [Contribution Guide](#22-contribution-guide)
-23. [Security Reporting](#23-security-reporting)
-24. [License and Project Usage Information](#24-license-and-project-usage-information)
+5. [Device Enrollment & Authentication Lifecycle](#5-device-enrollment--authentication-lifecycle)
+6. [Technology Stack](#6-technology-stack)
+7. [Repository Structure](#7-repository-structure)
+8. [Milestone Roadmap](#8-milestone-roadmap)
+9. [Prerequisites](#9-prerequisites)
+10. [Installation Guide](#10-installation-guide)
+11. [Environment Configuration](#11-environment-configuration)
+12. [PostgreSQL Setup & Migrations](#12-postgresql-setup--migrations)
+13. [Backend Setup & Execution](#13-backend-setup--execution)
+14. [Frontend Setup & Execution](#14-frontend-setup--execution)
+15. [Android Setup & Execution](#15-android-setup--execution)
+16. [Physical Android Device Connection (ADB Reverse)](#16-physical-android-device-connection-adb-reverse)
+17. [Running Automated Tests](#17-running-automated-tests)
+18. [Building the Application](#18-building-the-application)
+19. [API Documentation](#19-api-documentation)
+20. [Security Architecture & Threat Model](#20-security-architecture--threat-model)
+21. [Known Limitations & Architectural Boundaries](#21-known-limitations--architectural-boundaries)
+22. [Collaboration Guide](#22-collaboration-guide)
+23. [Contribution Guide](#23-contribution-guide)
+24. [Security Reporting](#24-security-reporting)
+25. [License and Project Usage Information](#25-license-and-project-usage-information)
 
 ---
 
@@ -80,11 +81,13 @@ To ensure complete engineering transparency, features are categorized by their a
 - [x] **Backend Device Registry & Verification Engine (M2.4-B):** PostgreSQL storage, pessimistic row-level locking (`SELECT ... FOR UPDATE` SEC-01), and ASN.1 DER ECDSA signature verification.
 - [x] **Dynamic Web QR Authentication (M2.4-C):** Dynamic QR generation, 60s countdown timer, auto-refresh, and Anti QR-jacking browser secret binding (SEC-02).
 - [x] **Mobile Networking & Challenge Approval (M2.4-D):** OkHttp 4.12.0 client with connection lifecycle management, approval UI, and physical end-to-end verification.
+- [x] **One-Time Device Enrollment & Sign-In Only Lifecycle (M2 Hardening):** Hardware authenticators are enrolled once (`ACTIVE`), subsequent logins strictly perform hardware challenge-response (`Sign In`), duplicate enrollments are rejected with HTTP 409 `DEVICE_ALREADY_REGISTERED` via pessimistic row-level locking, and administrative unregistration decouples the device without deleting records.
+- [x] **Secure Notes Digital Vault (M3 Core):** Zero-Knowledge encrypted personal notes using HKDF-SHA256, AES-256-GCM, educational Vigenère transformation layer, and strict owner isolation bound to the verified M2 hardware `device_id`.
 - [x] **Fail-Closed Negative Security Enforcement:** Rejection of un-enrolled devices, expired challenges, and invalid origin headers.
 
 ### Planned Features (Future Milestones)
-- [ ] **M3 — Digital Asset Vault:** Encrypted file storage and retrieval pipeline.
-- [ ] **M3 — Symmetric Asset Encryption:** AES-256-GCM and XChaCha20-Poly1305 ciphers.
+- [ ] **M3 — Digital Asset Vault:** Encrypted file storage and streaming upload/download pipeline.
+- [ ] **M3 — Streaming File Encryption:** AES-256-GCM and XChaCha20-Poly1305 multi-part ciphers.
 - [ ] **M3 — Key Derivation:** Argon2id passphrase-based key derivation.
 - [ ] **M3 — Steganographic Watermarking:** PNG LSB steganography for copyright and watermark embedding.
 - [ ] **M4 — Cryptographic Integrity Auditing:** SHA-256 Merkle-linked audit hash chain and tamper detection.
@@ -129,7 +132,74 @@ To ensure complete engineering transparency, features are categorized by their a
 
 ---
 
-## 5. Technology Stack
+## 5. Device Enrollment & Authentication Lifecycle
+
+IPGuard enforces the hardware authenticator security principle:
+> **A device is registered once. After successful registration, it can only sign in.**
+
+The companion Android smartphone acts as a **dedicated physical hardware security token**. Private keys are permanently bound to the device's hardware security module (TEE / StrongBox) and never cross the process or network boundary.
+
+```mermaid
+flowchart TD
+    subgraph Enrollment ["1. First-Time Enrollment"]
+        E1[Install Android Authenticator] --> E2[Web: 'Register Device' Tab]
+        E2 --> E3[Scan ENROLLMENT QR Code]
+        E3 --> E4[Generate Keystore ECDSA P-256 Key]
+        E4 --> E5[Biometric / PIN User Authorization]
+        E5 --> E6[Sign Canonical Payload & Submit Public Key]
+        E6 --> E7[Backend PostgreSQL: Status ACTIVE]
+    end
+
+    subgraph Authentication ["2. Subsequent Hardware Sign-In"]
+        A1[Enrolled Phone Status: ACTIVE] --> A2[Web: 'Mobile Sign-In' Tab]
+        A2 --> A3[Scan AUTHENTICATION QR Code]
+        A3 --> A4[Authorize with Existing Hardware Key]
+        A4 --> A5[Verify Signature & Grant Session]
+        A5 --> A6[Unlock Web Console & M3 Vault]
+    end
+
+    subgraph Management ["3. Device Lifecycle Management"]
+        M1[Web: Device Management] --> M2{Administrative Action}
+        M2 -- Revoke Access --> M3[Status: REVOKED<br>Registration Slot Retained]
+        M2 -- Unregister Device --> M4[Status: UNREGISTERED<br>Releases Slot, Preserves Notes]
+        M4 --> E1
+    end
+```
+
+### First-Time Enrollment Flow
+1. **Device Preparation:** Install the IPGuard Authenticator on an Android device running API 28+ (tested through API 36).
+2. **Challenge Creation:** On the Web Console, select the **Register Device** tab to create an `ENROLLMENT` session challenge with a strict 60-second TTL.
+3. **Presence Gate & QR Scan:** In the mobile app, tap **Set up this device**, pass the front-camera presence check, and scan the QR code.
+4. **Hardware Key Initialization:** If the Android Keystore does not already hold the signing key (`ipguard_device_signing_v1`), the app invokes `ensureSigningKey()` to generate a non-exportable NIST P-256 (`secp256r1`) key pair inside the TEE/StrongBox.
+5. **Biometric Consent:** The user authorizes registration via `BiometricPrompt` using Class 3 strong biometrics (fingerprint) or the device's secure lock screen credential (PIN, pattern, password).
+6. **Backend Verification:** The Android client submits the canonical signature and raw X.509 SubjectPublicKeyInfo DER public key to `POST /api/v1/auth/devices/register`.
+7. **Active State:** The backend cryptographically validates the signature, ensures no duplicate registration exists, records the device with status **`ACTIVE`**, and atomically approves the web session.
+
+### Subsequent Sign In Flow
+1. **Sign-In Only Lock:** Once enrolled, the Android app switches to trusted authenticator mode, locking out registration flows and offering **Sign In (Scan QR)**.
+2. **Challenge Acquisition:** The user initiates web login via the **Mobile Sign-In** tab, which displays an `AUTHENTICATION` session QR code.
+3. **Out-of-Band Signature:** The user scans the QR code. The app retrieves the canonical challenge bytes and requests hardware authorization via `BiometricPrompt`.
+4. **Existing Key Policy:** The challenge is signed strictly using the pre-existing, enrolled hardware signing key. The app **never generates a replacement key automatically** during sign-in.
+5. **Session Authorization:** Backend verifies the signature against the registered public key via PostgreSQL pessimistic row-level locking (`SELECT ... FOR UPDATE`), approving the web session and issuing the session token.
+
+### Device Management (Revoke Access vs Unregister Device)
+Administrative controls on the Web Console (`/devices`) decouple authentication access from registration slot ownership:
+- **Revoke Access (`POST /api/v1/auth/devices/{device_id}/revoke`):**
+  Immediately terminates all active sessions and sets device status to `REVOKED`. The registration slot **remains locked** to prevent unauthorized re-registration from that device identity.
+- **Unregister Device (`POST /api/v1/auth/devices/{device_id}/unregister`):**
+  Sets `unregistered_at = now()`, marks registration status as `UNREGISTERED`, invalidates active sessions, and **frees the registration slot**. This allows a replacement device or the same device to undergo clean enrollment.
+- **Data & Secure Notes Preservation:**
+  Neither action deletes the database `Device` record or the associated Milestone 3 **Secure Notes**. Notes created by the device remain safely isolated under their `owner_id` (`device_id`). If the same device re-enrolls, its existing identity is reactivated, preserving note ownership seamlessly.
+
+### Security Notes
+- **Hardware Isolation:** Private signing keys reside exclusively within the Android hardware security module (TEE / StrongBox) and can never be extracted (`privateKey.encoded == null`).
+- **Public Key Verification:** Only public keys (X.509 DER) are sent to the backend for signature verification.
+- **Backend as Source of Truth:** Device registration and access states are authoritatively verified and enforced by the PostgreSQL backend using pessimistic locking. Local client states in SharedPreferences serve purely for UI responsiveness and synchronization.
+- **Non-Security Identifiers:** Device IDs (e.g., client UUIDs or Android IDs) are non-security identifiers; the cryptographic ECDSA signature verified against the enrolled public key is the sole authoritative proof of hardware identity.
+
+---
+
+## 6. Technology Stack
 
 | Layer | Component | Version / Specification | Role |
 |---|---|---|---|
@@ -153,7 +223,7 @@ To ensure complete engineering transparency, features are categorized by their a
 
 ---
 
-## 6. Repository Structure
+## 7. Repository Structure
 
 ```text
 IPGuard/
@@ -201,19 +271,19 @@ IPGuard/
 
 ---
 
-## 7. Milestone Roadmap
+## 8. Milestone Roadmap
 
 | Milestone | Focus Area | Status | Verification Summary |
 |---|---|:---:|---|
 | **M1** | Foundation & Architecture | **COMPLETE** | React frontend, FastAPI backend, PostgreSQL 17, Alembic migrations, Pytest suite. |
-| **M2** | Authentication & Device Security | **COMPLETE** | **M2.0–M2.3:** Keystore ECDSA P-256, BiometricPrompt + CryptoObject, CameraX/ML Kit.<br>**M2.4-B:** Backend device registry, session locking (SEC-01), origin validation (SEC-03).<br>**M2.4-C:** Web QR auth UI, countdown timer, anti QR-jacking channel binding (SEC-02).<br>**M2.4-D:** Android QR parsing, hardware signing, OkHttp integration (Physically Verified on Samsung A54 5G). |
-| **M3** | Core Cryptography & Asset Protection | **PLANNED** | Digital asset vault, streaming AES-256-GCM / XChaCha20-Poly1305 file encryption, Argon2id KDF, secure notes. |
+| **M2** | Authentication & Device Security | **COMPLETE** | **M2.0–M2.3:** Keystore ECDSA P-256, BiometricPrompt + CryptoObject, CameraX/ML Kit.<br>**M2.4-B:** Backend device registry, session locking (SEC-01), origin validation (SEC-03).<br>**M2.4-C:** Web QR auth UI, countdown timer, anti QR-jacking channel binding (SEC-02).<br>**M2.4-D:** Android QR parsing, hardware signing, OkHttp integration.<br>**M2 Hardening:** One-Time Device Enrollment and Sign-In Only lifecycle (Physically Verified on Samsung A54 5G). |
+| **M3** | Core Cryptography & Asset Protection | **IN PROGRESS** | **Verified:** Zero-Knowledge Secure Notes Vault (AES-256-GCM + HKDF-SHA256 + Vigenère layer + M2 device-bound owner isolation).<br>**Planned:** Digital asset vault, streaming AES-256-GCM file encryption, Argon2id KDF, steganography. |
 | **M4** | Integrity & Advanced Protection | **PLANNED** | Cryptographic hashing, SHA-256 Merkle-linked audit hash chain, PNG LSB steganography, tamper-evident alerts. |
 | **M5** | Integration, Testing & Release | **PLANNED** | End-to-end multi-tenant integration, penetration testing, packaging, and production deployment. |
 
 ---
 
-## 8. Prerequisites
+## 9. Prerequisites
 
 Ensure your development environment meets the following specifications:
 - **Operating System:** Windows 10/11, macOS, or Linux.
@@ -225,7 +295,7 @@ Ensure your development environment meets the following specifications:
 
 ---
 
-## 9. Installation Guide
+## 10. Installation Guide
 
 ```bash
 # 1. Clone repository
@@ -240,7 +310,7 @@ cp frontend/.env.example frontend/.env
 
 ---
 
-## 10. Environment Configuration
+## 11. Environment Configuration
 
 IPGuard strictly separates development configuration from secrets. **Never commit real `.env` files.**
 
@@ -270,7 +340,7 @@ VITE_API_BASE_URL=http://localhost:8000/api/v1
 
 ---
 
-## 11. PostgreSQL Setup & Migrations
+## 12. PostgreSQL Setup & Migrations
 
 1. Start database via Docker Compose or native PostgreSQL 17 service:
    ```bash
@@ -287,7 +357,7 @@ VITE_API_BASE_URL=http://localhost:8000/api/v1
 
 ---
 
-## 12. Backend Setup & Execution
+## 13. Backend Setup & Execution
 
 Start the FastAPI application with Uvicorn:
 ```powershell
@@ -300,7 +370,7 @@ python -m uvicorn app.main:app --host 127.0.0.1 --port 8000 --timeout-keep-alive
 
 ---
 
-## 13. Frontend Setup & Execution
+## 14. Frontend Setup & Execution
 
 Start the Vite development server:
 ```powershell
@@ -310,11 +380,13 @@ npm run dev
 ```
 - **Web Console:** `http://localhost:5173`
 - **QR Sign-In Page:** `http://localhost:5173/login`
+- **Device Management:** `http://localhost:5173/devices`
+- **Secure Notes Vault:** `http://localhost:5173/notes`
 - **System Status Dashboard:** `http://localhost:5173/system-status`
 
 ---
 
-## 14. Android Setup & Execution
+## 15. Android Setup & Execution
 
 Build and install the Android Authenticator via Gradle:
 ```powershell
@@ -325,7 +397,7 @@ adb shell am start -n com.ipguard.authenticator/.MainActivity
 
 ---
 
-## 15. Physical Android Device Connection (ADB Reverse)
+## 16. Physical Android Device Connection (ADB Reverse)
 
 When testing with a physical Android device connected via USB, the mobile client must route traffic to the host computer's backend on port 8000.
 
@@ -344,7 +416,7 @@ adb reverse --list
 
 ---
 
-## 16. Running Automated Tests
+## 17. Running Automated Tests
 
 IPGuard maintains strict test quality gates across all three subsystems:
 
@@ -353,7 +425,7 @@ IPGuard maintains strict test quality gates across all three subsystems:
 cd backend
 python -m pytest -v
 ```
-*Current result: 65 passed in 4.09s.*
+*Current result: 102 passed in 4.36s (M1 + M2 + M3 + Lifecycle suite).*
 
 ### Frontend Typecheck & Production Build
 ```powershell
@@ -361,18 +433,18 @@ cd frontend
 npm run typecheck
 npm run build
 ```
-*Current result: 2,188 modules transformed with 0 errors.*
+*Current result: 2,195 modules transformed with 0 errors.*
 
 ### Android Unit Tests
 ```powershell
 cd mobile-authenticator
 .\gradlew.bat testDebugUnitTest --no-daemon
 ```
-*Current result: 37 tests, 0 failures, 0 errors.*
+*Current result: 59 unit tests passed across 10 test suites in 0.45s, 0 failures, 0 errors.*
 
 ---
 
-## 17. Building the Application
+## 18. Building the Application
 
 ### Frontend Production Bundle
 ```powershell
@@ -388,22 +460,33 @@ Outputs APK into `mobile-authenticator/app/build/outputs/apk/debug/app-debug.apk
 
 ---
 
-## 18. API Documentation
+## 19. API Documentation
 
 Interactive OpenAPI / Swagger documentation is available at `http://localhost:8000/docs`.
 
-### Key Milestone 2 Endpoints
-- `POST /api/v1/auth/sessions/` — Create new QR authentication session.
+### Key Authentication & Device Endpoints
+- `POST /api/v1/auth/sessions` — Create new QR authentication or enrollment session.
 - `GET /api/v1/auth/sessions/{session_token}` — Poll session state (SEC-02 protected).
+- `POST /api/v1/auth/sessions/{session_token}/scan` — Notify backend that QR code was scanned.
 - `POST /api/v1/auth/sessions/{session_token}/verify` — Verify mobile ECDSA challenge signature.
 - `POST /api/v1/auth/devices/register` — Register newly enrolled hardware device public key.
-- `GET /api/v1/auth/devices/` — List registered devices (protected by dev admin key).
+- `GET /api/v1/auth/devices/{device_id}/status` — Synchronize device enrollment and access status.
+- `POST /api/v1/auth/devices/{device_id}/revoke` — Revoke device access (retains registration lock).
+- `POST /api/v1/auth/devices/{device_id}/unregister` — Unregister device binding and free enrollment slot.
+- `GET /api/v1/auth/devices` — List registered devices (protected by dev admin key or bearer token).
 
-Full API contracts are documented in [`docs/M2.4_API_CONTRACT.md`](docs/M2.4_API_CONTRACT.md).
+### Milestone 3 Secure Notes Endpoints
+- `GET /api/v1/notes` — List owner's encrypted notes (requires bearer token).
+- `POST /api/v1/notes` — Create encrypted note with AES-256-GCM ciphertext and Vigenère educational layer.
+- `GET /api/v1/notes/{id}` — Retrieve specific note ciphertext.
+- `PUT /api/v1/notes/{id}` — Update note ciphertext.
+- `DELETE /api/v1/notes/{id}` — Delete note.
+
+Full API contracts are documented in [`docs/M2.4_API_CONTRACT.md`](docs/M2.4_API_CONTRACT.md) and [`docs/ONE_TIME_DEVICE_ENROLLMENT.md`](docs/ONE_TIME_DEVICE_ENROLLMENT.md).
 
 ---
 
-## 19. Security Architecture & Threat Model
+## 20. Security Architecture & Threat Model
 
 IPGuard implements defense-in-depth security:
 1. **Hardware-Isolated Private Keys (Keystore):** Private keys are generated using `KeyGenParameterSpec` with curve `secp256r1` and stored in hardware TEE / StrongBox. Keys are explicitly non-exportable (`privateKey.encoded == null`).
@@ -414,24 +497,26 @@ IPGuard implements defense-in-depth security:
 4. **Anti QR-Jacking Protection (SEC-02):** The browser session secret token (`token_hash`) is never encoded into the QR code or transmitted to the mobile phone. Only the initiating browser can retrieve the session access token.
 5. **Pessimistic Row-Level Locking (SEC-01):** Challenge consumption in PostgreSQL uses `SELECT ... FOR UPDATE` to guarantee single-use nonce consumption.
 6. **Origin Binding (SEC-03):** Authentication sessions are cryptographically bound to verified origins (e.g. `http://localhost:5173`).
+7. **One-Time Enrollment Enforcement:** Backend rejects duplicate enrollments with HTTP 409 `DEVICE_ALREADY_REGISTERED`, preventing silent key replacement or race conditions.
+8. **M3 Owner Isolation & Zero-Knowledge Storage:** Secure Notes are encrypted client-side using HKDF-SHA256 derived keys and AES-256-GCM. The database stores ciphertext only; notes are strictly isolated by `owner_id` mapped to the verified `device_id`.
 
 ---
 
-## 20. Known Limitations & Architectural Boundaries
+## 21. Known Limitations & Architectural Boundaries
 
-1. **Milestone Boundary (No User Multi-Tenancy Yet):** Milestone 2 establishes device-level identity and cryptographic challenge-response authentication. Multi-tenant user accounts (`users` table) are scheduled for Milestone 3.
-2. **Single Active Device Policy:** The current device registry supports binding one active authenticator key per client context. Key rollover and multi-device revocation lists are scheduled for M3/M4.
+1. **Milestone Boundary (Device-Level Identity):** Milestones 1–3 establish device-level hardware identity and cryptographic challenge-response authentication. Multi-tenant username/password user accounts (`users` table) are scheduled for Milestone 4/5.
+2. **Single Active Device Policy:** The current device registry supports binding one active authenticator key per client context. Key rollover and multi-device revocation lists are scheduled for M4.
 3. **Physical Device Network Routing:** Connecting a physical mobile device requires either an active `adb reverse tcp:8000 tcp:8000` tunnel or configuring `IPGUARD_API_URL` to point to a reachable LAN IP address.
 
 ---
 
-## 21. Collaboration Guide
+## 22. Collaboration Guide
 
 Detailed instructions for repository collaborators, permission models, and candidate issue roadmaps for Milestone 3 and 4 are documented in [`docs/COLLABORATION_GUIDE.md`](docs/COLLABORATION_GUIDE.md).
 
 ---
 
-## 22. Contribution Guide
+## 23. Contribution Guide
 
 We welcome contributions from invited team members! Please consult [`CONTRIBUTING.md`](CONTRIBUTING.md) for:
 - Branching strategy (`feature/m3-...`, `feature/m4-...`, `fix/...`).
@@ -441,13 +526,13 @@ We welcome contributions from invited team members! Please consult [`CONTRIBUTIN
 
 ---
 
-## 23. Security Reporting
+## 24. Security Reporting
 
 If you discover a potential security vulnerability within IPGuard, please consult [`SECURITY.md`](SECURITY.md) for our private disclosure process. **Do not create public GitHub issues for security vulnerabilities.**
 
 ---
 
-## 24. License and Project Usage Information
+## 25. License and Project Usage Information
 
 - **Repository Visibility:** `PRIVATE`.
 - **Status:** Proprietary / Pre-release research and development.
