@@ -48,6 +48,11 @@ ui_dump*.xml
 *_dump*.xml
 *.xml.dump
 
+# Local audit scratch and raw collaborator drafts
+Progress*/
+scratch/
+tests_e2e_live*.py
+
 # Android / Gradle
 .gradle/
 **/build/
