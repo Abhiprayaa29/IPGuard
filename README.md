@@ -1,7 +1,7 @@
 # IPGuard — Secure Digital Asset Protection
 
-[![Milestone](https://img.shields.io/badge/Milestone-M2--Complete-brightgreen.svg)](docs/M2_FINAL_SHARING_READINESS.md)
-[![Backend Tests](https://img.shields.io/badge/Backend%20Tests-65%2F65%20PASS-success.svg)](backend/tests/)
+[![Milestone](https://img.shields.io/badge/Milestone-M3--Integrated-brightgreen.svg)](docs/M3_ALIZA_ASSET_VAULT_INTEGRATION.md)
+[![Backend Tests](https://img.shields.io/badge/Backend%20Tests-114%2F114%20PASS-success.svg)](backend/tests/)
 [![Android Tests](https://img.shields.io/badge/Android%20Tests-37%2F37%20PASS-success.svg)](mobile-authenticator/app/src/test/)
 [![Python](https://img.shields.io/badge/Python-3.13-blue.svg)](https://www.python.org/)
 [![Node](https://img.shields.io/badge/Node-22%20LTS-green.svg)](https://nodejs.org/)
@@ -83,14 +83,13 @@ To ensure complete engineering transparency, features are categorized by their a
 - [x] **Mobile Networking & Challenge Approval (M2.4-D):** OkHttp 4.12.0 client with connection lifecycle management, approval UI, and physical end-to-end verification.
 - [x] **One-Time Device Enrollment & Sign-In Only Lifecycle (M2 Hardening):** Hardware authenticators are enrolled once (`ACTIVE`), subsequent logins strictly perform hardware challenge-response (`Sign In`), duplicate enrollments are rejected with HTTP 409 `DEVICE_ALREADY_REGISTERED` via pessimistic row-level locking, and administrative unregistration decouples the device without deleting records.
 - [x] **Secure Notes Digital Vault (M3 Core):** Zero-Knowledge encrypted personal notes using HKDF-SHA256, AES-256-GCM, educational Vigenère transformation layer, and strict owner isolation bound to the verified M2 hardware `device_id`.
+- [x] **Digital Asset Vault & File Protection (M3 Core):** True XChaCha20-Poly1305 AEAD encrypted file storage (`PyNaCl` / libsodium C-bindings), 24-byte CSPRNG nonces, 16-byte Poly1305 authentication tags, per-device HKDF-SHA256 key isolation, AAD context binding (`v1|device_id|asset_id`), atomic temporary-to-permanent file writes, and magic-byte signature validation blocking dangerous executable formats.
+- [x] **Full-Stack Asset Vault Console (M3):** React 19 single-page console with drag-and-drop file upload, upload progress tracking, category filtering (Images, Docs, Archives), in-memory decrypted image preview, Blob download stream with automatic URL revocation, rename dialog, permanent delete confirmation, and persistent `sessionStorage` hardware session binding.
 - [x] **Fail-Closed Negative Security Enforcement:** Rejection of un-enrolled devices, expired challenges, and invalid origin headers.
 
 ### Planned Features (Future Milestones)
-- [ ] **M3 — Digital Asset Vault:** Encrypted file storage and streaming upload/download pipeline.
-- [ ] **M3 — Streaming File Encryption:** AES-256-GCM and XChaCha20-Poly1305 multi-part ciphers.
-- [ ] **M3 — Key Derivation:** Argon2id passphrase-based key derivation.
 - [ ] **M3 — Steganographic Watermarking:** PNG LSB steganography for copyright and watermark embedding.
-- [ ] **M4 — Cryptographic Integrity Auditing:** SHA-256 Merkle-linked audit hash chain and tamper detection.
+- [ ] **M4 — Cryptographic Integrity Auditing:** SHA-256 Merkle-linked audit hash chain, background integrity scheduler, and tamper detection.
 - [ ] **M4 — Hardware Attestation:** Remote Keymaster / Keymint certificate chain verification.
 - [ ] **M5 — Multi-Tenant Access Control & Production Deployment:** Role-based permissions, cloud deployment, and penetration audits.
 
@@ -482,7 +481,15 @@ Interactive OpenAPI / Swagger documentation is available at `http://localhost:80
 - `PUT /api/v1/notes/{id}` — Update note ciphertext.
 - `DELETE /api/v1/notes/{id}` — Delete note.
 
-Full API contracts are documented in [`docs/M2.4_API_CONTRACT.md`](docs/M2.4_API_CONTRACT.md) and [`docs/ONE_TIME_DEVICE_ENROLLMENT.md`](docs/ONE_TIME_DEVICE_ENROLLMENT.md).
+### Milestone 3 Digital Asset Vault Endpoints
+- `POST /api/v1/assets` — Upload digital asset with magic-byte validation, XChaCha20-Poly1305 encryption, and atomic storage.
+- `GET /api/v1/assets` — List digital assets owned by authenticated device (descending by timestamp).
+- `GET /api/v1/assets/{id}` — Retrieve digital asset metadata and SHA-256 ciphertext digest.
+- `GET /api/v1/assets/{id}/download` — Verify integrity, decrypt in memory, and download binary attachment.
+- `PATCH /api/v1/assets/{id}` — Rename digital asset without altering encrypted binary file.
+- `DELETE /api/v1/assets/{id}` — Delete asset record and permanently unlink ciphertext binary from disk.
+
+Full API contracts are documented in [`docs/M2.4_API_CONTRACT.md`](docs/M2.4_API_CONTRACT.md), [`docs/ONE_TIME_DEVICE_ENROLLMENT.md`](docs/ONE_TIME_DEVICE_ENROLLMENT.md), and [`docs/M3_ALIZA_ASSET_VAULT_INTEGRATION.md`](docs/M3_ALIZA_ASSET_VAULT_INTEGRATION.md).
 
 ---
 
