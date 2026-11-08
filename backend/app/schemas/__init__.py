@@ -19,6 +19,11 @@ from app.schemas.common import (
     HealthResponse,
     SystemInfoResponse,
 )
+from app.schemas.note import (
+    NoteCreateRequest,
+    NoteResponse,
+    NoteUpdateRequest,
+)
 
 __all__ = [
     "DatabaseHealthResponse",
@@ -29,6 +34,9 @@ __all__ = [
     "ErrorDetail",
     "ErrorResponse",
     "HealthResponse",
+    "NoteCreateRequest",
+    "NoteResponse",
+    "NoteUpdateRequest",
     "QRPayload",
     "SessionCreateRequest",
     "SessionResponse",
