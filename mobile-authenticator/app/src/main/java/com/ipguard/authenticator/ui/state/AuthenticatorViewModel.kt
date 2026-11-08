@@ -17,6 +17,8 @@ import com.ipguard.authenticator.security.DeviceAuthenticationPolicy
 import com.ipguard.authenticator.security.DeviceIdManager
 import com.ipguard.authenticator.security.DeviceKeyManager
 import com.ipguard.authenticator.security.DeviceKeyVerificationRunner
+import com.ipguard.authenticator.security.DeviceKeyException
+import com.ipguard.authenticator.security.DeviceLockScreenRequiredException
 import com.ipguard.authenticator.security.DeviceSigningAuthenticator
 import com.ipguard.authenticator.security.FullVerificationSuiteResult
 import com.ipguard.authenticator.security.SigningKeyPolicyViolationException
@@ -255,17 +257,65 @@ class AuthenticatorViewModel @JvmOverloads constructor(
             return
         }
 
-        if (!keyManager.hasSigningKey()) {
-            _uiState.update { current ->
-                current.copy(
-                    activeSession = current.activeSession.copy(
-                        step = AuthFlowStep.FAILED,
-                        errorMessage = "Device signing key is not initialized. Please register the key first."
-                    )
-                )
+        // Fork handling: ENROLLMENT vs AUTHENTICATION
+        when (payload.type) {
+            QrSessionType.ENROLLMENT -> {
+                if (!keyManager.hasSigningKey()) {
+                    try {
+                        keyManager.ensureSigningKey(requireUserAuthentication = true)
+                        refreshKeyDiagnostic()
+                    } catch (e: DeviceLockScreenRequiredException) {
+                        _uiState.update { current ->
+                            current.copy(
+                                activeSession = current.activeSession.copy(
+                                    step = AuthFlowStep.FAILED,
+                                    errorMessage = e.message ?: getString(R.string.policy_explanation_no_lock)
+                                )
+                            )
+                        }
+                        onCompleted(false)
+                        return
+                    } catch (e: Throwable) {
+                        _uiState.update { current ->
+                            current.copy(
+                                activeSession = current.activeSession.copy(
+                                    step = AuthFlowStep.FAILED,
+                                    errorMessage = "Failed to initialize device signing key: ${e.message ?: e.javaClass.simpleName}"
+                                )
+                            )
+                        }
+                        onCompleted(false)
+                        return
+                    }
+                }
+
+                if (!keyManager.hasSigningKey()) {
+                    _uiState.update { current ->
+                        current.copy(
+                            activeSession = current.activeSession.copy(
+                                step = AuthFlowStep.FAILED,
+                                errorMessage = "Device signing key initialization failed verification."
+                            )
+                        )
+                    }
+                    onCompleted(false)
+                    return
+                }
             }
-            onCompleted(false)
-            return
+            QrSessionType.AUTHENTICATION -> {
+                if (!keyManager.hasSigningKey()) {
+                    _uiState.update { current ->
+                        current.copy(
+                            activeSession = current.activeSession.copy(
+                                step = AuthFlowStep.FAILED,
+                                errorMessage = "Device signing key is not initialized. Please enroll this device first."
+                            )
+                        )
+                    }
+                    onCompleted(false)
+                    return
+                }
+            }
         }
 
         val canonicalPayload = payload.buildCanonicalPayload()
@@ -321,103 +371,127 @@ class AuthenticatorViewModel @JvmOverloads constructor(
                             val deviceId = deviceIdManager.getOrCreateDeviceId()
                             when (payload.type) {
                                 QrSessionType.AUTHENTICATION -> {
-                                    val apiResult = apiService.verifySession(
-                                        sessionToken = payload.sessionToken,
-                                        request = VerifySessionRequest(
-                                            deviceId = deviceId,
-                                            canonicalPayload = canonicalPayload,
-                                            signature = success.base64Signature
+                                    try {
+                                        val apiResult = apiService.verifySession(
+                                            sessionToken = payload.sessionToken,
+                                            request = VerifySessionRequest(
+                                                deviceId = deviceId,
+                                                canonicalPayload = canonicalPayload,
+                                                signature = success.base64Signature
+                                            )
                                         )
-                                    )
-                                    when (apiResult) {
-                                        is ApiResult.Success -> {
-                                            _uiState.update { current ->
-                                                current.copy(
-                                                    activeSession = current.activeSession.copy(
-                                                        step = AuthFlowStep.COMPLETED_APPROVED,
-                                                        statusMessage = "Authentication approved by backend.",
-                                                        errorMessage = null
+                                        when (apiResult) {
+                                            is ApiResult.Success -> {
+                                                _uiState.update { current ->
+                                                    current.copy(
+                                                        activeSession = current.activeSession.copy(
+                                                            step = AuthFlowStep.COMPLETED_APPROVED,
+                                                            statusMessage = "Authentication approved by backend.",
+                                                            errorMessage = null
+                                                        )
                                                     )
-                                                )
+                                                }
+                                                onCompleted(true)
                                             }
-                                            onCompleted(true)
-                                        }
-                                        is ApiResult.HttpError -> {
-                                            _uiState.update { current ->
-                                                current.copy(
-                                                    activeSession = current.activeSession.copy(
-                                                        step = AuthFlowStep.FAILED,
-                                                        errorMessage = "Backend rejected signature: ${apiResult.message}"
+                                            is ApiResult.HttpError -> {
+                                                _uiState.update { current ->
+                                                    current.copy(
+                                                        activeSession = current.activeSession.copy(
+                                                            step = AuthFlowStep.FAILED,
+                                                            errorMessage = "Backend rejected signature: ${apiResult.message}"
+                                                        )
                                                     )
-                                                )
+                                                }
+                                                onCompleted(false)
                                             }
-                                            onCompleted(false)
-                                        }
-                                        is ApiResult.NetworkError -> {
-                                            _uiState.update { current ->
-                                                current.copy(
-                                                    activeSession = current.activeSession.copy(
-                                                        step = AuthFlowStep.FAILED,
-                                                        errorMessage = "Network connection failed: ${apiResult.message}"
+                                            is ApiResult.NetworkError -> {
+                                                _uiState.update { current ->
+                                                    current.copy(
+                                                        activeSession = current.activeSession.copy(
+                                                            step = AuthFlowStep.FAILED,
+                                                            errorMessage = "Network connection failed: ${apiResult.message}"
+                                                        )
                                                     )
-                                                )
+                                                }
+                                                onCompleted(false)
                                             }
-                                            onCompleted(false)
                                         }
+                                    } catch (e: Throwable) {
+                                        _uiState.update { current ->
+                                            current.copy(
+                                                activeSession = current.activeSession.copy(
+                                                    step = AuthFlowStep.FAILED,
+                                                    errorMessage = "Authentication failed: ${e.message ?: e.javaClass.simpleName}"
+                                                )
+                                            )
+                                        }
+                                        onCompleted(false)
                                     }
                                 }
                                 QrSessionType.ENROLLMENT -> {
-                                    val exportedKey = keyManager.getExportedPublicKey()
-                                    val metadata = keyManager.getKeySecurityMetadata()
-                                    val apiResult = apiService.registerDevice(
-                                        RegisterDeviceRequest(
-                                            sessionToken = payload.sessionToken,
-                                            deviceId = deviceId,
-                                            deviceName = deviceModel(),
-                                            model = Build.MODEL,
-                                            androidVersion = Build.VERSION.RELEASE,
-                                            publicKeyX509 = exportedKey.base64Encoded,
-                                            securityLevel = metadata.securityLevel.name,
-                                            canonicalPayload = canonicalPayload,
-                                            signature = success.base64Signature
+                                    try {
+                                        val exportedKey = keyManager.getExportedPublicKey()
+                                        val metadata = keyManager.getKeySecurityMetadata()
+                                        val apiResult = apiService.registerDevice(
+                                            RegisterDeviceRequest(
+                                                sessionToken = payload.sessionToken,
+                                                deviceId = deviceId,
+                                                deviceName = deviceModel(),
+                                                model = Build.MODEL,
+                                                androidVersion = Build.VERSION.RELEASE,
+                                                publicKeyX509 = exportedKey.base64Encoded,
+                                                securityLevel = metadata.securityLevel.name,
+                                                canonicalPayload = canonicalPayload,
+                                                signature = success.base64Signature
+                                            )
                                         )
-                                    )
-                                    when (apiResult) {
-                                        is ApiResult.Success -> {
-                                            _uiState.update { current ->
-                                                current.copy(
-                                                    trustedPhoneCount = 1,
-                                                    activeSession = current.activeSession.copy(
-                                                        step = AuthFlowStep.COMPLETED_APPROVED,
-                                                        statusMessage = "Device successfully enrolled in backend.",
-                                                        errorMessage = null
+                                        when (apiResult) {
+                                            is ApiResult.Success -> {
+                                                _uiState.update { current ->
+                                                    current.copy(
+                                                        trustedPhoneCount = 1,
+                                                        activeSession = current.activeSession.copy(
+                                                            step = AuthFlowStep.COMPLETED_APPROVED,
+                                                            statusMessage = "Device successfully enrolled in backend.",
+                                                            errorMessage = null
+                                                        )
                                                     )
-                                                )
+                                                }
+                                                onCompleted(true)
                                             }
-                                            onCompleted(true)
-                                        }
-                                        is ApiResult.HttpError -> {
-                                            _uiState.update { current ->
-                                                current.copy(
-                                                    activeSession = current.activeSession.copy(
-                                                        step = AuthFlowStep.FAILED,
-                                                        errorMessage = "Registration rejected: ${apiResult.message}"
+                                            is ApiResult.HttpError -> {
+                                                _uiState.update { current ->
+                                                    current.copy(
+                                                        activeSession = current.activeSession.copy(
+                                                            step = AuthFlowStep.FAILED,
+                                                            errorMessage = "Registration rejected: ${apiResult.message}"
+                                                        )
                                                     )
-                                                )
+                                                }
+                                                onCompleted(false)
                                             }
-                                            onCompleted(false)
-                                        }
-                                        is ApiResult.NetworkError -> {
-                                            _uiState.update { current ->
-                                                current.copy(
-                                                    activeSession = current.activeSession.copy(
-                                                        step = AuthFlowStep.FAILED,
-                                                        errorMessage = "Network error: ${apiResult.message}"
+                                            is ApiResult.NetworkError -> {
+                                                _uiState.update { current ->
+                                                    current.copy(
+                                                        activeSession = current.activeSession.copy(
+                                                            step = AuthFlowStep.FAILED,
+                                                            errorMessage = "Network error: ${apiResult.message}"
+                                                        )
                                                     )
-                                                )
+                                                }
+                                                onCompleted(false)
                                             }
-                                            onCompleted(false)
                                         }
+                                    } catch (e: Throwable) {
+                                        _uiState.update { current ->
+                                            current.copy(
+                                                activeSession = current.activeSession.copy(
+                                                    step = AuthFlowStep.FAILED,
+                                                    errorMessage = "Registration failed: ${e.message ?: e.javaClass.simpleName}"
+                                                )
+                                            )
+                                        }
+                                        onCompleted(false)
                                     }
                                 }
                             }

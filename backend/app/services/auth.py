@@ -30,6 +30,7 @@ from app.services.crypto import (
 from app.services.origin import validate_and_resolve_origin
 
 CHALLENGE_TIMEOUT_SECONDS = 60
+AUTHENTICATED_SESSION_LIFETIME_SECONDS = 3600
 DEFAULT_POLL_INTERVAL_MS = 1500
 
 
@@ -337,6 +338,7 @@ def register_device(db: Session, request: DeviceRegisterRequest) -> DeviceRespon
     session.canonical_payload = request.canonical_payload
     session.signature = request.signature
     session.signed_at = now
+    session.expires_at = now + timedelta(seconds=AUTHENTICATED_SESSION_LIFETIME_SECONDS)
 
     db.commit()
     db.refresh(device)
@@ -446,6 +448,7 @@ def verify_session_signature(
     session.canonical_payload = request.canonical_payload
     session.signature = request.signature
     session.signed_at = now
+    session.expires_at = now + timedelta(seconds=AUTHENTICATED_SESSION_LIFETIME_SECONDS)
 
     device.last_used_at = now
 
