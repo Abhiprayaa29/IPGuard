@@ -231,6 +231,11 @@ Milestone 2.4 establishes the cryptographic bridge between the Android hardware 
   - Database schema: `browser_channel_token_hash` on `auth_sessions` via Alembic migration `0003_auth_browser_channel`.
   - Comprehensive UI lifecycle states: `INITIAL`, `CREATING`, `READY`, `SCANNED`, `APPROVED`, `REJECTED`, `EXPIRED`, `ERROR`.
   - Full test coverage: `test_browser_channel_security.py` and frontend production build verified.
-- **M2.4-D:** Android Authenticator QR Parser & OkHttp Network Client Integration (Ready to Start).
+- **M2.4-D:** Android Authenticator QR Parser & OkHttp Network Client Integration (Complete & Verified):
+  - Strict QR payload parser (`com.ipguard.authenticator.security.qr`) with schema validation, RFC 6454 origin checks, and anti QR-jacking boundary (SEC-02).
+  - Secure asynchronous OkHttp client (`com.ipguard.authenticator.network`) for session scanning, approval, and device registration.
+  - App-scoped persistent device identity (`DeviceIdManager`) avoiding hardware serials or IMEI.
+  - Integration with BiometricPrompt / DEVICE_CREDENTIAL authentication flow for user consent and Keystore signing.
+  - Verified on physical Samsung Galaxy A54 5G (Android 16 / API 36).
 
 Detailed API contracts and remediation verification are documented in [M2.4_API_CONTRACT.md](M2.4_API_CONTRACT.md) and [M2.4B_SECURITY_REMEDIATION_REPORT.md](M2.4B_SECURITY_REMEDIATION_REPORT.md).

@@ -137,7 +137,17 @@ IPGuard/
 │   │       │   ├── navigation/
 │   │       │   │   ├── AppDestination.kt
 │   │       │   │   └── AppNavHost.kt
+│   │       │   ├── network/
+│   │       │   │   ├── ApiResult.kt
+│   │       │   │   ├── AuthApiService.kt
+│   │       │   │   └── NetworkModels.kt
 │   │       │   ├── security/
+│   │       │   │   ├── qr/
+│   │       │   │   │   ├── QrAuthPayload.kt
+│   │       │   │   │   ├── QrAuthPayloadParser.kt
+│   │       │   │   │   ├── QrPayloadValidationResult.kt
+│   │       │   │   │   └── QrSessionType.kt
+│   │       │   │   ├── DeviceIdManager.kt
 │   │       │   │   ├── DeviceAuthenticationPolicy.kt
 │   │       │   │   ├── DeviceKeyExceptions.kt
 │   │       │   │   ├── DeviceKeyManager.kt

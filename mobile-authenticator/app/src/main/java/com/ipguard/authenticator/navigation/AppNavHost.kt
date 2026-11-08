@@ -30,9 +30,11 @@ fun AppNavHost(
     onRegenerateKey: () -> Unit = {},
     onDeleteKey: () -> Unit = {},
     onRefreshKey: () -> Unit = {},
-    onApproveSign: (FragmentActivity, () -> Unit) -> Unit = { _, _ -> },
+    onApproveSign: (FragmentActivity, (Boolean) -> Unit) -> Unit = { _, onDone -> onDone(true) },
     onApprovalError: () -> Unit = {},
-    onTestSign: (FragmentActivity) -> Unit = {}
+    onTestSign: (FragmentActivity) -> Unit = {},
+    onQrScanned: (String) -> Unit = {},
+    onCancelActiveSession: () -> Unit = {}
 ) {
     val goHome: () -> Unit = {
         navController.popBackStack(
@@ -97,10 +99,8 @@ fun AppNavHost(
         composable(AppDestination.QrScanner.route) {
             QrScannerScreen(
                 onBack = { navController.navigateUp() },
-                onScanComplete = {
-                    navController.navigate(
-                        AppDestination.Result.createRoute(PreviewResult.SCAN_COMPLETE)
-                    )
+                onScanComplete = { rawBarcode ->
+                    onQrScanned(rawBarcode)
                 }
             )
         }
@@ -108,11 +108,16 @@ fun AppNavHost(
         composable(AppDestination.AuthenticationRequest.route) {
             AuthenticationRequestScreen(
                 request = uiState.previewRequest,
-                onBack = { navController.navigateUp() },
+                activeSession = uiState.activeSession,
+                onBack = {
+                    onCancelActiveSession()
+                    navController.navigateUp()
+                },
                 onReview = {
                     navController.navigate(AppDestination.Approval.route)
                 },
                 onReject = {
+                    onCancelActiveSession()
                     navController.navigate(
                         AppDestination.Result.createRoute(PreviewResult.REJECTED)
                     )
@@ -128,21 +133,32 @@ fun AppNavHost(
             val activity = context as? FragmentActivity
             ApprovalScreen(
                 request = uiState.previewRequest,
+                activeSession = uiState.activeSession,
                 authPolicy = uiState.authPolicy,
                 signingDiagnostic = uiState.signingDiagnostic,
-                onBack = { navController.navigateUp() },
+                onBack = {
+                    onCancelActiveSession()
+                    navController.navigateUp()
+                },
                 onApprove = {
                     if (activity == null) {
                         onApprovalError()
                     } else {
-                        onApproveSign(activity) {
-                            navController.navigate(
-                                AppDestination.Result.createRoute(PreviewResult.APPROVED)
-                            )
+                        onApproveSign(activity) { success ->
+                            if (success) {
+                                navController.navigate(
+                                    AppDestination.Result.createRoute(PreviewResult.APPROVED)
+                                )
+                            } else {
+                                navController.navigate(
+                                    AppDestination.Result.createRoute(PreviewResult.REJECTED)
+                                )
+                            }
                         }
                     }
                 },
                 onReject = {
+                    onCancelActiveSession()
                     navController.navigate(
                         AppDestination.Result.createRoute(PreviewResult.REJECTED)
                     )
@@ -164,10 +180,14 @@ fun AppNavHost(
             )
             ResultScreen(
                 outcome = result,
-                onHome = goHome,
+                onHome = {
+                    onCancelActiveSession()
+                    goHome()
+                },
                 onDeviceDetails = goToDeviceInformation,
                 onReviewAnother = goToRequest,
-                signingDiagnostic = uiState.signingDiagnostic
+                signingDiagnostic = uiState.signingDiagnostic,
+                activeSession = uiState.activeSession
             )
         }
 

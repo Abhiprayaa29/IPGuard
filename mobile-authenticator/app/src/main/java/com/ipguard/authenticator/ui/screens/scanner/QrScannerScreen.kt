@@ -39,15 +39,15 @@ import com.ipguard.authenticator.ui.theme.IPGuardMistMuted
 @Composable
 fun QrScannerScreen(
     onBack: () -> Unit,
-    onScanComplete: () -> Unit,
+    onScanComplete: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val permission = rememberCameraPermissionState()
     var cameraError by remember { mutableStateOf(false) }
     var cameraAttempt by remember { mutableIntStateOf(0) }
     val analyzer = remember {
-        QrCodeAnalyzer {
-            onScanComplete()
+        QrCodeAnalyzer { rawBarcode ->
+            onScanComplete(rawBarcode)
         }
     }
 

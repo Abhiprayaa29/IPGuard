@@ -1,0 +1,119 @@
+name: IPGuard CI Quality Gate
+
+on:
+  push:
+    branches:
+      - main
+      - 'feature/**'
+      - 'fix/**'
+  pull_request:
+    branches:
+      - main
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend-test:
+    name: Backend Tests & Database Migrations
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: ipguard
+          POSTGRES_PASSWORD: ipguard_ci_password
+          POSTGRES_DB: ipguard
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.13
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+          cache: 'pip'
+          cache-dependency-path: 'backend/requirements.txt'
+
+      - name: Install Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r backend/requirements.txt
+
+      - name: Apply Alembic Migrations
+        env:
+          DATABASE_URL: postgresql+psycopg://ipguard:ipguard_ci_password@127.0.0.1:5432/ipguard
+          APP_ENV: development
+          CORS_ORIGINS: http://localhost:5173
+        run: |
+          cd backend
+          alembic -c alembic.ini upgrade head
+
+      - name: Run Backend Test Suite (Pytest)
+        env:
+          DATABASE_URL: postgresql+psycopg://ipguard:ipguard_ci_password@127.0.0.1:5432/ipguard
+          APP_ENV: development
+          CORS_ORIGINS: http://localhost:5173
+        run: |
+          cd backend
+          pytest -v
+
+  frontend-build:
+    name: Frontend Typecheck & Production Build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'npm'
+          cache-dependency-path: 'frontend/package-lock.json'
+
+      - name: Install Frontend Dependencies
+        working-directory: frontend
+        run: npm ci
+
+      - name: Typecheck TypeScript
+        working-directory: frontend
+        run: npm run typecheck
+
+      - name: Build Frontend Application
+        working-directory: frontend
+        run: npm run build
+
+  android-check:
+    name: Android Unit Tests & Debug APK Build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Run Android Unit Tests & Assemble Debug APK
+        working-directory: mobile-authenticator
+        run: |
+          chmod +x ./gradlew
+          ./gradlew testDebugUnitTest assembleDebug --no-daemon

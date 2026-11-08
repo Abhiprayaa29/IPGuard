@@ -27,6 +27,7 @@ export function useQrAuth(
   const pollingTimerRef = useRef<number | null>(null)
   const countdownTimerRef = useRef<number | null>(null)
   const activeSessionTokenRef = useRef<string | null>(null)
+  const requestIdRef = useRef<number>(0)
 
   const clearTimers = useCallback(() => {
     if (pollingTimerRef.current !== null) {
@@ -49,6 +50,7 @@ export function useQrAuth(
   const startSession = useCallback(
     async (type: SessionType = sessionType) => {
       clearTimers()
+      const reqId = ++requestIdRef.current
       setSessionType(type)
       setStatus('CREATING')
       setErrorMessage(null)
@@ -60,6 +62,11 @@ export function useQrAuth(
       try {
         const origin = window.location.origin
         const newSession = await createAuthSession(type, origin)
+
+        // Drop stale async response if another session was requested
+        if (requestIdRef.current !== reqId) {
+          return
+        }
 
         // Store private channel token in ephemeral memory only
         channelTokenRef.current = newSession.browser_channel_token
@@ -76,8 +83,18 @@ export function useQrAuth(
         )
         setSecondsRemaining(initialSeconds > 0 ? initialSeconds : DEFAULT_TTL_SECONDS)
 
-        // Start countdown timer
+        // Ensure timers from any previous tick are dead
+        clearTimers()
+
+        // Start countdown timer guarded by requestId
         countdownTimerRef.current = window.setInterval(() => {
+          if (requestIdRef.current !== reqId) {
+            if (countdownTimerRef.current !== null) {
+              window.clearInterval(countdownTimerRef.current)
+              countdownTimerRef.current = null
+            }
+            return
+          }
           setSecondsRemaining((prev) => {
             if (prev <= 1) {
               clearTimers()
@@ -88,9 +105,17 @@ export function useQrAuth(
           })
         }, 1000)
 
-        // Start polling interval
+        // Start polling interval guarded by requestId
         const pollInterval = newSession.poll_interval_ms || POLLING_INTERVAL_MS
         pollingTimerRef.current = window.setInterval(async () => {
+          if (requestIdRef.current !== reqId) {
+            if (pollingTimerRef.current !== null) {
+              window.clearInterval(pollingTimerRef.current)
+              pollingTimerRef.current = null
+            }
+            return
+          }
+
           const currentToken = activeSessionTokenRef.current
           const currentSecret = channelTokenRef.current
 
@@ -100,6 +125,10 @@ export function useQrAuth(
 
           try {
             const res = await pollAuthSessionStatus(currentToken, currentSecret)
+            if (requestIdRef.current !== reqId) {
+              return
+            }
+
             setPollResult(res)
 
             if (res.status === 'SCANNED') {
@@ -115,6 +144,9 @@ export function useQrAuth(
               setStatus('EXPIRED')
             }
           } catch (err: unknown) {
+            if (requestIdRef.current !== reqId) {
+              return
+            }
             // If polling error is 403 or fatal session error, halt polling
             const msg = err instanceof Error ? err.message : 'Polling failure'
             if (msg.includes('403') || msg.includes('404')) {
@@ -125,6 +157,9 @@ export function useQrAuth(
           }
         }, pollInterval)
       } catch (err: unknown) {
+        if (requestIdRef.current !== reqId) {
+          return
+        }
         clearTimers()
         setStatus('ERROR')
         setErrorMessage(
@@ -138,6 +173,7 @@ export function useQrAuth(
   )
 
   const cancelSession = useCallback(() => {
+    requestIdRef.current++
     clearTimers()
     channelTokenRef.current = null
     activeSessionTokenRef.current = null
@@ -147,8 +183,11 @@ export function useQrAuth(
     setErrorMessage(null)
   }, [clearTimers])
 
+  // Mount-only autoStart effect
+  const hasAutoStartedRef = useRef(false)
   useEffect(() => {
-    if (autoStart) {
+    if (autoStart && !hasAutoStartedRef.current) {
+      hasAutoStartedRef.current = true
       startSession(initialType)
     }
     return () => {
