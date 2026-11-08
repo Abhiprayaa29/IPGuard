@@ -1,6 +1,7 @@
 from fastapi import APIRouter, Depends, Header, Request, status
 from sqlalchemy.orm import Session
 
+from app.api.deps import get_current_authenticated_device
 from app.core.config import Settings, get_settings
 from app.core.errors import AppError
 from app.db.session import get_db
@@ -8,6 +9,8 @@ from app.schemas.auth import (
     DeviceRegisterRequest,
     DeviceResponse,
     DeviceRevokeRequest,
+    DeviceStatusCheckResponse,
+    DeviceUnregisterRequest,
     SessionCreateRequest,
     SessionResponse,
     SessionScanRequest,
@@ -18,10 +21,12 @@ from app.schemas.common import ErrorResponse
 from app.services.auth import (
     create_auth_session,
     get_auth_session_status,
+    get_device_status,
     list_devices,
     mark_session_scanned,
     register_device,
     revoke_device,
+    unregister_device,
     verify_session_signature,
 )
 
@@ -50,6 +55,39 @@ def require_dev_admin_access(
             status_code=status.HTTP_401_UNAUTHORIZED,
             code="unauthorized_admin_access",
             message="Valid X-Dev-Admin-Key is required to access the device registry.",
+        )
+
+
+def require_device_action_access(
+    authorization: str | None = Header(default=None, alias="Authorization"),
+    x_dev_admin_key: str | None = Header(default=None, alias="X-Dev-Admin-Key"),
+    db: Session = Depends(get_db),
+    settings: Settings = Depends(get_settings),
+) -> None:
+    """
+    Authorize device lifecycle modifications (revoke, unregister).
+    1. If X-Dev-Admin-Key is provided, it must match settings.dev_admin_key.
+    2. If Bearer token is provided, it must be an active authenticated session.
+    3. In production, unauthenticated requests are strictly rejected with HTTP 401.
+    """
+    if x_dev_admin_key:
+        if x_dev_admin_key != settings.dev_admin_key:
+            raise AppError(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                code="unauthorized_admin_access",
+                message="Invalid X-Dev-Admin-Key provided.",
+            )
+        return
+
+    if authorization and authorization.startswith("Bearer "):
+        get_current_authenticated_device(authorization=authorization, db=db)
+        return
+
+    if settings.app_env == "production":
+        raise AppError(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            code="unauthorized_admin_access",
+            message="Valid X-Dev-Admin-Key or active authenticated Bearer token is required.",
         )
 
 
@@ -166,11 +204,24 @@ def register_new_device(
     return register_device(db=db, request=body)
 
 
+@router.get(
+    "/devices/{device_id}/status",
+    response_model=DeviceStatusCheckResponse,
+    summary="Check device registration and access status",
+)
+def check_device_enrollment_status(
+    device_id: str,
+    db: Session = Depends(get_db),
+) -> DeviceStatusCheckResponse:
+    return get_device_status(db=db, device_id=device_id)
+
+
 @router.post(
     "/devices/{device_id}/revoke",
     response_model=DeviceResponse,
     summary="Revoke an enrolled authenticator device",
     responses={
+        401: {"model": ErrorResponse, "description": "Unauthorized. Dev admin key or active session token required."},
         404: {"model": ErrorResponse, "description": "Device not found."},
     },
 )
@@ -178,14 +229,33 @@ def revoke_enrolled_device(
     device_id: str,
     body: DeviceRevokeRequest | None = None,
     db: Session = Depends(get_db),
+    _: None = Depends(require_device_action_access),
 ) -> DeviceResponse:
     return revoke_device(db=db, device_id=device_id)
+
+
+@router.post(
+    "/devices/{device_id}/unregister",
+    response_model=DeviceResponse,
+    summary="Explicitly unregister a device, releasing its enrollment slot",
+    responses={
+        401: {"model": ErrorResponse, "description": "Unauthorized. Dev admin key or active session token required."},
+        404: {"model": ErrorResponse, "description": "Device not found."},
+    },
+)
+def unregister_enrolled_device(
+    device_id: str,
+    body: DeviceUnregisterRequest | None = None,
+    db: Session = Depends(get_db),
+    _: None = Depends(require_device_action_access),
+) -> DeviceResponse:
+    return unregister_device(db=db, device_id=device_id)
 
 
 @router.get(
     "/devices",
     response_model=list[DeviceResponse],
-    summary="List all enrolled devices (Development/Test only)",
+    summary="List all enrolled devices",
     responses={
         401: {"model": ErrorResponse, "description": "Unauthorized. Administrative key required."},
         403: {"model": ErrorResponse, "description": "Forbidden. Disabled in production."},

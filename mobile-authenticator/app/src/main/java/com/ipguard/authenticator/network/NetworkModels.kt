@@ -32,3 +32,11 @@ data class DeviceRegisteredDto(
     val status: String,
     val publicKeyFingerprint: String
 )
+
+data class DeviceStatusDto(
+    val deviceId: String,
+    val status: String,
+    val registrationStatus: String,
+    val accessStatus: String,
+    val publicKeyFingerprint: String? = null
+)

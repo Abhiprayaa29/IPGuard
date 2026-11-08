@@ -70,7 +70,12 @@ fun AppNavHost(
             WelcomeScreen(
                 uiState = uiState,
                 onStartSetup = {
-                    navController.navigate(AppDestination.Registration.route)
+                    if (!uiState.isRegistered) {
+                        navController.navigate(AppDestination.Registration.route)
+                    }
+                },
+                onStartSignIn = {
+                    navController.navigate(AppDestination.QrScanner.route)
                 },
                 onReviewRequest = goToRequest,
                 onOpenDeviceInformation = goToDeviceInformation,
@@ -79,12 +84,17 @@ fun AppNavHost(
         }
 
         composable(AppDestination.Registration.route) {
-            DeviceRegistrationScreen(
-                onBack = { navController.navigateUp() },
-                onContinue = {
-                    navController.navigate(AppDestination.FaceGate.route)
-                }
-            )
+            if (uiState.isRegistered) {
+                // Already registered: prevent registration flow and return home
+                goHome()
+            } else {
+                DeviceRegistrationScreen(
+                    onBack = { navController.navigateUp() },
+                    onContinue = {
+                        navController.navigate(AppDestination.FaceGate.route)
+                    }
+                )
+            }
         }
 
         composable(AppDestination.FaceGate.route) {

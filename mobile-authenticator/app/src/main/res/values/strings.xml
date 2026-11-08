@@ -19,6 +19,15 @@
     <string name="welcome_eyebrow">DEVICE-BOUND ACCESS</string>
     <string name="welcome_title">Your phone is the key.</string>
     <string name="welcome_subtitle">Approve sensitive IPGuard actions from a trusted device without exposing your private key.</string>
+    <string name="welcome_registered_eyebrow">TRUSTED AUTHENTICATOR</string>
+    <string name="welcome_registered_title">Trusted Authenticator Active</string>
+    <string name="welcome_registered_subtitle">This phone is registered as your hardware authenticator. Scan QR codes to sign in.</string>
+    <string name="welcome_registered_device_title">Active Hardware Authenticator</string>
+    <string name="welcome_registered_device_body">This device is bound to your IPGuard account. Use it to authorize sign-ins to the Web Console.</string>
+    <string name="welcome_registered_binding_value">Enrolled &amp; Active</string>
+    <string name="welcome_registered_primary_action">Sign In (Scan QR)</string>
+    <string name="welcome_registered_notice">Ready to approve sign-in requests. Scan the QR code displayed on the IPGuard Web Console.</string>
+    <string name="welcome_key_missing_alert">Signing key is missing from Android Keystore. This device must be unregistered from the web console before you can set it up again.</string>
     <string name="welcome_build_badge">M2.3-B DEVICE AUTHENTICATION</string>
     <string name="welcome_device_label">THIS DEVICE</string>
     <string name="welcome_device_title">No trusted device linked</string>
