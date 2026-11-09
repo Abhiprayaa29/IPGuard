@@ -4,7 +4,9 @@ from app.schemas.auth import (
     DeviceRegisterRequest,
     DeviceResponse,
     DeviceRevokeRequest,
+    DeviceStatusCheckResponse,
     DeviceSummary,
+    DeviceUnregisterRequest,
     QRPayload,
     SessionCreateRequest,
     SessionResponse,
@@ -19,16 +21,26 @@ from app.schemas.common import (
     HealthResponse,
     SystemInfoResponse,
 )
+from app.schemas.note import (
+    NoteCreateRequest,
+    NoteResponse,
+    NoteUpdateRequest,
+)
 
 __all__ = [
     "DatabaseHealthResponse",
     "DeviceRegisterRequest",
     "DeviceResponse",
     "DeviceRevokeRequest",
+    "DeviceStatusCheckResponse",
     "DeviceSummary",
+    "DeviceUnregisterRequest",
     "ErrorDetail",
     "ErrorResponse",
     "HealthResponse",
+    "NoteCreateRequest",
+    "NoteResponse",
+    "NoteUpdateRequest",
     "QRPayload",
     "SessionCreateRequest",
     "SessionResponse",

@@ -1,4 +1,4 @@
-import { Activity, QrCode, ShieldCheck } from 'lucide-react'
+import { Activity, Lock, QrCode, ShieldCheck, Smartphone } from 'lucide-react'
 import { Link, NavLink, Outlet } from 'react-router-dom'
 
 export function AppShell() {
@@ -62,6 +62,34 @@ export function AppShell() {
             </NavLink>
 
             <NavLink
+              to="/devices"
+              className={({ isActive }) =>
+                `flex items-center gap-2 rounded-xl px-3 py-1.5 text-xs font-semibold transition ${
+                  isActive
+                    ? 'border border-ip-teal-400/30 bg-ip-teal-400/10 text-ip-teal-300 shadow-sm'
+                    : 'text-slate-400 hover:text-white hover:bg-white/5'
+                }`
+              }
+            >
+              <Smartphone size={14} />
+              <span className="hidden sm:inline">Devices</span>
+            </NavLink>
+
+            <NavLink
+              to="/notes"
+              className={({ isActive }) =>
+                `flex items-center gap-2 rounded-xl px-3 py-1.5 text-xs font-semibold transition ${
+                  isActive
+                    ? 'border border-ip-teal-400/30 bg-ip-teal-400/10 text-ip-teal-300 shadow-sm'
+                    : 'text-slate-400 hover:text-white hover:bg-white/5'
+                }`
+              }
+            >
+              <Lock size={14} />
+              <span className="hidden sm:inline">Secure Notes</span>
+            </NavLink>
+
+            <NavLink
               to="/system-status"
               className={({ isActive }) =>
                 `flex items-center gap-2 rounded-xl px-3 py-1.5 text-xs font-semibold transition ${
@@ -78,18 +106,18 @@ export function AppShell() {
 
           <div className="flex items-center gap-3">
             <span className="rounded-full border border-ip-gold-400/20 bg-ip-gold-400/[0.06] px-3 py-1.5 text-[9px] font-semibold uppercase tracking-[0.2em] text-ip-gold-300">
-              Auth / M2.4-C
+              Auth & M3 Notes
             </span>
           </div>
         </div>
       </header>
 
-      <main className="relative z-10 mx-auto w-full max-w-6xl flex-1 px-5 pb-16 pt-8 sm:px-8 sm:pt-12">
+      <main className="relative z-10 mx-auto w-full max-w-6xl flex-1 px-5 py-8 sm:px-8">
         <Outlet />
       </main>
 
-      <footer className="relative z-10 border-t border-white/[0.05] bg-ip-navy-950/40 py-6 text-center text-xs text-slate-500 backdrop-blur-md">
-        <p>IPGuard Secure Digital Asset Protection • Milestone 2.4-C</p>
+      <footer className="relative z-10 border-t border-white/[0.06] bg-ip-navy-950/40 py-4 text-center text-[10px] text-slate-500 backdrop-blur-md">
+        IPGuard • Hardware-Bound Cryptographic Digital Asset Security
       </footer>
     </div>
   )

@@ -19,6 +19,7 @@ interface AuthApiService {
     suspend fun scanSession(sessionToken: String, deviceId: String?): ApiResult<SessionStatusDto>
     suspend fun verifySession(sessionToken: String, request: VerifySessionRequest): ApiResult<SessionStatusDto>
     suspend fun registerDevice(request: RegisterDeviceRequest): ApiResult<DeviceRegisteredDto>
+    suspend fun checkDeviceStatus(deviceId: String): ApiResult<DeviceStatusDto>
 }
 
 class OkHttpAuthApiService(
@@ -105,6 +106,29 @@ class OkHttpAuthApiService(
                 deviceName = json.optString("device_name", request.deviceName),
                 status = json.optString("status", "ACTIVE"),
                 publicKeyFingerprint = json.optString("public_key_fingerprint", "")
+            )
+        }
+    }
+
+    override suspend fun checkDeviceStatus(
+        deviceId: String
+    ): ApiResult<DeviceStatusDto> = withContext(Dispatchers.IO) {
+        val httpRequest = Request.Builder()
+            .url(resolveUrl("/auth/devices/$deviceId/status"))
+            .get()
+            .build()
+
+        executeRequest(httpRequest) { json ->
+            val fp = if (json.has("public_key_fingerprint") && !json.isNull("public_key_fingerprint")) {
+                if (!json.isNull("public_key_fingerprint")) json.optString("public_key_fingerprint").ifEmpty { null } else null
+            } else null
+
+            DeviceStatusDto(
+                deviceId = json.optString("device_id", deviceId),
+                status = json.optString("status", "UNREGISTERED"),
+                registrationStatus = json.optString("registration_status", "UNREGISTERED"),
+                accessStatus = json.optString("access_status", "REVOKED"),
+                publicKeyFingerprint = fp
             )
         }
     }

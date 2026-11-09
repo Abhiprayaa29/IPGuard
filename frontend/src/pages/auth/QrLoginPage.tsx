@@ -2,9 +2,20 @@ import { ArrowRight, CheckCircle2, Lock, Shield, Smartphone } from 'lucide-react
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { QrAuthCard } from '../../components/auth/QrAuthCard'
+import { clearStoredSessionToken, saveSessionToken } from '../../utils/session'
 
 export function QrLoginPage() {
   const [authenticatedToken, setAuthenticatedToken] = useState<string | null>(null)
+
+  const handleAuthSuccess = (token: string) => {
+    saveSessionToken(token)
+    setAuthenticatedToken(token)
+  }
+
+  const handleSignOut = () => {
+    clearStoredSessionToken()
+    setAuthenticatedToken(null)
+  }
 
   return (
     <div className="flex flex-col gap-10">
@@ -44,15 +55,24 @@ export function QrLoginPage() {
           </div>
           <div className="mt-6 flex flex-col gap-3">
             <Link
+              to="/notes"
+              state={{ token: authenticatedToken }}
+              className="inline-flex items-center justify-center gap-2 rounded-xl border border-ip-teal-400/40 bg-ip-teal-400/20 py-3 text-xs font-semibold text-ip-teal-200 transition hover:bg-ip-teal-400/30 hover:border-ip-teal-400/60 shadow-[0_0_20px_-5px_rgba(45,212,191,0.4)]"
+            >
+              <Lock size={14} />
+              Open Secure Notes Vault
+              <ArrowRight size={14} />
+            </Link>
+            <Link
               to="/system-status"
-              className="inline-flex items-center justify-center gap-2 rounded-xl border border-ip-teal-400/30 bg-ip-teal-400/15 py-2.5 text-xs font-semibold text-ip-teal-300 transition hover:bg-ip-teal-400/25"
+              className="inline-flex items-center justify-center gap-2 rounded-xl border border-white/10 bg-white/5 py-2.5 text-xs font-semibold text-slate-300 transition hover:bg-white/10 hover:text-white"
             >
               View System Infrastructure
               <ArrowRight size={14} />
             </Link>
             <button
               type="button"
-              onClick={() => setAuthenticatedToken(null)}
+              onClick={handleSignOut}
               className="text-xs text-slate-400 hover:text-white"
             >
               Sign Out / New Authentication
@@ -63,11 +83,7 @@ export function QrLoginPage() {
         <div className="grid grid-cols-1 gap-8 lg:grid-cols-12 lg:items-center">
           {/* Left Column: QR Card */}
           <div className="lg:col-span-7">
-            <QrAuthCard
-              onSuccess={(token) => {
-                setAuthenticatedToken(token)
-              }}
-            />
+            <QrAuthCard onSuccess={handleAuthSuccess} />
           </div>
 
           {/* Right Column: Security Guarantees & Technical Details */}

@@ -2,7 +2,7 @@ from datetime import datetime
 from typing import Any, Literal
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, computed_field
 
 
 class DeviceSummary(BaseModel):
@@ -30,6 +30,32 @@ class DeviceResponse(BaseModel):
     enrolled_at: datetime
     last_used_at: datetime | None = None
     revoked_at: datetime | None = None
+    unregistered_at: datetime | None = None
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def registration_status(self) -> str:
+        if self.status == "UNREGISTERED":
+            return "UNREGISTERED"
+        return "REGISTERED"
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def access_status(self) -> str:
+        if self.status == "ACTIVE":
+            return "ACTIVE"
+        return "REVOKED"
+
+
+class DeviceStatusCheckResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    device_id: str
+    status: str  # "ACTIVE", "REVOKED", "UNREGISTERED", or "NOT_ENROLLED"
+    registration_status: str
+    access_status: str
+    public_key_fingerprint: str | None = None
+    enrolled_at: datetime | None = None
 
 
 class SessionCreateRequest(BaseModel):
@@ -111,3 +137,7 @@ class DeviceRegisterRequest(BaseModel):
 
 class DeviceRevokeRequest(BaseModel):
     reason: str | None = Field(default=None, description="Reason for device revocation")
+
+
+class DeviceUnregisterRequest(BaseModel):
+    reason: str | None = Field(default=None, description="Reason for device unregistration")

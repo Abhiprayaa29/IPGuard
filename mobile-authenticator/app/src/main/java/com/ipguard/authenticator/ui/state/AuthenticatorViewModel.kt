@@ -17,6 +17,10 @@ import com.ipguard.authenticator.security.DeviceAuthenticationPolicy
 import com.ipguard.authenticator.security.DeviceIdManager
 import com.ipguard.authenticator.security.DeviceKeyManager
 import com.ipguard.authenticator.security.DeviceKeyVerificationRunner
+import com.ipguard.authenticator.security.DeviceKeyException
+import com.ipguard.authenticator.security.DeviceLockScreenRequiredException
+import com.ipguard.authenticator.security.DeviceRegistrationManager
+import com.ipguard.authenticator.security.DeviceRegistrationStatus
 import com.ipguard.authenticator.security.DeviceSigningAuthenticator
 import com.ipguard.authenticator.security.FullVerificationSuiteResult
 import com.ipguard.authenticator.security.SigningKeyPolicyViolationException
@@ -37,7 +41,8 @@ class AuthenticatorViewModel @JvmOverloads constructor(
     private val keyManager: DeviceKeyManager = AndroidKeystoreDeviceKeyManager(),
     private val authenticator: DeviceSigningAuthenticator = DeviceSigningAuthenticator(keyManager),
     private val apiService: AuthApiService = OkHttpAuthApiService(),
-    private val qrParser: QrAuthPayloadParser = QrAuthPayloadParser()
+    private val qrParser: QrAuthPayloadParser = QrAuthPayloadParser(),
+    private val registrationManager: DeviceRegistrationManager = DeviceRegistrationManager(application)
 ) : AndroidViewModel(application) {
 
     private val deviceIdManager = DeviceIdManager(application)
@@ -56,11 +61,61 @@ class AuthenticatorViewModel @JvmOverloads constructor(
 
     init {
         refreshAll()
+        syncRegistrationWithBackend()
     }
 
     fun refreshAll() {
+        val devId = deviceIdManager.getOrCreateDeviceId()
+        val isReg = registrationManager.isRegistered()
+        val regStatus = registrationManager.getRegistrationStatus()
+        _uiState.update { current ->
+            current.copy(
+                deviceId = devId,
+                isRegistered = isReg,
+                registrationStatus = regStatus.name,
+                trustedPhoneCount = if (isReg) 1 else 0
+            )
+        }
         refreshAuthPolicy()
         refreshKeyDiagnostic()
+    }
+
+    fun syncRegistrationWithBackend() {
+        viewModelScope.launch {
+            try {
+                val deviceId = deviceIdManager.getOrCreateDeviceId()
+                when (val result = apiService.checkDeviceStatus(deviceId)) {
+                    is ApiResult.Success -> {
+                        val status = result.data.registrationStatus
+                        if (status.equals("UNREGISTERED", ignoreCase = true)) {
+                            registrationManager.clearRegistration()
+                            _uiState.update { current ->
+                                current.copy(
+                                    isRegistered = false,
+                                    registrationStatus = "UNREGISTERED",
+                                    trustedPhoneCount = 0
+                                )
+                            }
+                        } else if (status.equals("ACTIVE", ignoreCase = true) || status.equals("REVOKED", ignoreCase = true)) {
+                            val regStatus = if (status.equals("ACTIVE", ignoreCase = true)) {
+                                DeviceRegistrationStatus.ACTIVE
+                            } else {
+                                DeviceRegistrationStatus.REVOKED
+                            }
+                            registrationManager.setRegistrationStatus(regStatus)
+                            _uiState.update { current ->
+                                current.copy(
+                                    isRegistered = true,
+                                    registrationStatus = regStatus.name,
+                                    trustedPhoneCount = 1
+                                )
+                            }
+                        }
+                    }
+                    else -> {}
+                }
+            } catch (_: Throwable) {}
+        }
     }
 
     fun refreshAuthPolicy() {
@@ -93,6 +148,7 @@ class AuthenticatorViewModel @JvmOverloads constructor(
 
     fun refreshKeyDiagnostic() {
         try {
+            val isReg = registrationManager.isRegistered()
             if (keyManager.hasSigningKey()) {
                 val metadata = keyManager.getKeySecurityMetadata()
                 val exported = keyManager.getExportedPublicKey()
@@ -121,8 +177,14 @@ class AuthenticatorViewModel @JvmOverloads constructor(
                     current.copy(
                         keyDiagnostic = KeyDiagnosticState(
                             hasKey = false,
-                            statusMessage = getString(R.string.device_key_missing_status),
-                            errorMessage = null
+                            statusMessage = if (isReg) {
+                                "Signing key missing from Keystore while device is registered. Unregister from Web Console to re-enroll."
+                            } else {
+                                getString(R.string.device_key_missing_status)
+                            },
+                            errorMessage = if (isReg) {
+                                "Signing key is missing from Android Keystore. This device must be unregistered from the web console before you can set it up again."
+                            } else null
                         )
                     )
                 }
@@ -141,6 +203,11 @@ class AuthenticatorViewModel @JvmOverloads constructor(
 
     fun generateSigningKey(requireUserAuth: Boolean = true) {
         try {
+            if (registrationManager.isRegistered()) {
+                throw SigningKeyPolicyViolationException(
+                    "Device is already registered. To change the signing key, unregister the device from the web console first."
+                )
+            }
             if (keyManager.hasSigningKey()) {
                 throw SigningKeyPolicyViolationException(
                     getString(R.string.key_generate_requires_rotation)
@@ -161,6 +228,11 @@ class AuthenticatorViewModel @JvmOverloads constructor(
 
     fun regenerateSigningKey(requireUserAuth: Boolean = true) {
         try {
+            if (registrationManager.isRegistered()) {
+                throw SigningKeyPolicyViolationException(
+                    "Device is already registered. Regenerating the key will break sign-in. Unregister first from the web console."
+                )
+            }
             keyManager.rotateSigningKey(requireUserAuth)
             refreshAll()
         } catch (e: Throwable) {
@@ -176,6 +248,11 @@ class AuthenticatorViewModel @JvmOverloads constructor(
 
     fun deleteSigningKey() {
         try {
+            if (registrationManager.isRegistered()) {
+                throw SigningKeyPolicyViolationException(
+                    "Device is already registered. Deleting the key will break sign-in. Unregister first from the web console."
+                )
+            }
             keyManager.deleteSigningKey()
             refreshAll()
         } catch (e: Throwable) {
@@ -197,6 +274,20 @@ class AuthenticatorViewModel @JvmOverloads constructor(
         when (val result = qrParser.parse(rawBarcode)) {
             is QrPayloadValidationResult.Valid -> {
                 val payload = result.payload
+                if (payload.type == QrSessionType.ENROLLMENT && registrationManager.isRegistered()) {
+                    val errMsg = "Device Already Registered. This device is already linked to IPGuard. Please use Sign In."
+                    _uiState.update { current ->
+                        current.copy(
+                            activeSession = ActiveAuthSessionState(
+                                step = AuthFlowStep.FAILED,
+                                errorMessage = errMsg
+                            )
+                        )
+                    }
+                    onInvalid(errMsg)
+                    return
+                }
+
                 val request = PreviewSignInRequest(
                     service = "IPGuard Console",
                     browser = "Web Client",
@@ -255,17 +346,78 @@ class AuthenticatorViewModel @JvmOverloads constructor(
             return
         }
 
-        if (!keyManager.hasSigningKey()) {
-            _uiState.update { current ->
-                current.copy(
-                    activeSession = current.activeSession.copy(
-                        step = AuthFlowStep.FAILED,
-                        errorMessage = "Device signing key is not initialized. Please register the key first."
-                    )
-                )
+        // Fork handling: ENROLLMENT vs AUTHENTICATION
+        when (payload.type) {
+            QrSessionType.ENROLLMENT -> {
+                if (registrationManager.isRegistered()) {
+                    _uiState.update { current ->
+                        current.copy(
+                            activeSession = current.activeSession.copy(
+                                step = AuthFlowStep.FAILED,
+                                errorMessage = "Perangkat ini sudah terdaftar di IPGuard. Silakan gunakan Sign In untuk melanjutkan."
+                            )
+                        )
+                    }
+                    onCompleted(false)
+                    return
+                }
+
+                if (!keyManager.hasSigningKey()) {
+                    try {
+                        keyManager.ensureSigningKey(requireUserAuthentication = true)
+                        refreshKeyDiagnostic()
+                    } catch (e: DeviceLockScreenRequiredException) {
+                        _uiState.update { current ->
+                            current.copy(
+                                activeSession = current.activeSession.copy(
+                                    step = AuthFlowStep.FAILED,
+                                    errorMessage = e.message ?: getString(R.string.policy_explanation_no_lock)
+                                )
+                            )
+                        }
+                        onCompleted(false)
+                        return
+                    } catch (e: Throwable) {
+                        _uiState.update { current ->
+                            current.copy(
+                                activeSession = current.activeSession.copy(
+                                    step = AuthFlowStep.FAILED,
+                                    errorMessage = "Failed to initialize device signing key: ${e.message ?: e.javaClass.simpleName}"
+                                )
+                            )
+                        }
+                        onCompleted(false)
+                        return
+                    }
+                }
+
+                if (!keyManager.hasSigningKey()) {
+                    _uiState.update { current ->
+                        current.copy(
+                            activeSession = current.activeSession.copy(
+                                step = AuthFlowStep.FAILED,
+                                errorMessage = "Device signing key initialization failed verification."
+                            )
+                        )
+                    }
+                    onCompleted(false)
+                    return
+                }
             }
-            onCompleted(false)
-            return
+            QrSessionType.AUTHENTICATION -> {
+                if (!keyManager.hasSigningKey()) {
+                    _uiState.update { current ->
+                        current.copy(
+                            activeSession = current.activeSession.copy(
+                                step = AuthFlowStep.FAILED,
+                                errorMessage = "Device signing key is not initialized. Please enroll this device first."
+                            )
+                        )
+                    }
+                    onCompleted(false)
+                    return
+                }
+            }
         }
 
         val canonicalPayload = payload.buildCanonicalPayload()
@@ -321,103 +473,146 @@ class AuthenticatorViewModel @JvmOverloads constructor(
                             val deviceId = deviceIdManager.getOrCreateDeviceId()
                             when (payload.type) {
                                 QrSessionType.AUTHENTICATION -> {
-                                    val apiResult = apiService.verifySession(
-                                        sessionToken = payload.sessionToken,
-                                        request = VerifySessionRequest(
-                                            deviceId = deviceId,
-                                            canonicalPayload = canonicalPayload,
-                                            signature = success.base64Signature
+                                    try {
+                                        val apiResult = apiService.verifySession(
+                                            sessionToken = payload.sessionToken,
+                                            request = VerifySessionRequest(
+                                                deviceId = deviceId,
+                                                canonicalPayload = canonicalPayload,
+                                                signature = success.base64Signature
+                                            )
                                         )
-                                    )
-                                    when (apiResult) {
-                                        is ApiResult.Success -> {
-                                            _uiState.update { current ->
-                                                current.copy(
-                                                    activeSession = current.activeSession.copy(
-                                                        step = AuthFlowStep.COMPLETED_APPROVED,
-                                                        statusMessage = "Authentication approved by backend.",
-                                                        errorMessage = null
+                                        when (apiResult) {
+                                            is ApiResult.Success -> {
+                                                _uiState.update { current ->
+                                                    current.copy(
+                                                        activeSession = current.activeSession.copy(
+                                                            step = AuthFlowStep.COMPLETED_APPROVED,
+                                                            statusMessage = "Authentication approved by backend.",
+                                                            errorMessage = null
+                                                        )
                                                     )
-                                                )
+                                                }
+                                                onCompleted(true)
                                             }
-                                            onCompleted(true)
-                                        }
-                                        is ApiResult.HttpError -> {
-                                            _uiState.update { current ->
-                                                current.copy(
-                                                    activeSession = current.activeSession.copy(
-                                                        step = AuthFlowStep.FAILED,
-                                                        errorMessage = "Backend rejected signature: ${apiResult.message}"
+                                            is ApiResult.HttpError -> {
+                                                _uiState.update { current ->
+                                                    current.copy(
+                                                        activeSession = current.activeSession.copy(
+                                                            step = AuthFlowStep.FAILED,
+                                                            errorMessage = "Backend rejected signature: ${apiResult.message}"
+                                                        )
                                                     )
-                                                )
+                                                }
+                                                onCompleted(false)
                                             }
-                                            onCompleted(false)
-                                        }
-                                        is ApiResult.NetworkError -> {
-                                            _uiState.update { current ->
-                                                current.copy(
-                                                    activeSession = current.activeSession.copy(
-                                                        step = AuthFlowStep.FAILED,
-                                                        errorMessage = "Network connection failed: ${apiResult.message}"
+                                            is ApiResult.NetworkError -> {
+                                                _uiState.update { current ->
+                                                    current.copy(
+                                                        activeSession = current.activeSession.copy(
+                                                            step = AuthFlowStep.FAILED,
+                                                            errorMessage = "Network connection failed: ${apiResult.message}"
+                                                        )
                                                     )
-                                                )
+                                                }
+                                                onCompleted(false)
                                             }
-                                            onCompleted(false)
                                         }
+                                    } catch (e: Throwable) {
+                                        _uiState.update { current ->
+                                            current.copy(
+                                                activeSession = current.activeSession.copy(
+                                                    step = AuthFlowStep.FAILED,
+                                                    errorMessage = "Authentication failed: ${e.message ?: e.javaClass.simpleName}"
+                                                )
+                                            )
+                                        }
+                                        onCompleted(false)
                                     }
                                 }
                                 QrSessionType.ENROLLMENT -> {
-                                    val exportedKey = keyManager.getExportedPublicKey()
-                                    val metadata = keyManager.getKeySecurityMetadata()
-                                    val apiResult = apiService.registerDevice(
-                                        RegisterDeviceRequest(
-                                            sessionToken = payload.sessionToken,
-                                            deviceId = deviceId,
-                                            deviceName = deviceModel(),
-                                            model = Build.MODEL,
-                                            androidVersion = Build.VERSION.RELEASE,
-                                            publicKeyX509 = exportedKey.base64Encoded,
-                                            securityLevel = metadata.securityLevel.name,
-                                            canonicalPayload = canonicalPayload,
-                                            signature = success.base64Signature
+                                    try {
+                                        val exportedKey = keyManager.getExportedPublicKey()
+                                        val metadata = keyManager.getKeySecurityMetadata()
+                                        val apiResult = apiService.registerDevice(
+                                            RegisterDeviceRequest(
+                                                sessionToken = payload.sessionToken,
+                                                deviceId = deviceId,
+                                                deviceName = deviceModel(),
+                                                model = Build.MODEL,
+                                                androidVersion = Build.VERSION.RELEASE,
+                                                publicKeyX509 = exportedKey.base64Encoded,
+                                                securityLevel = metadata.securityLevel.name,
+                                                canonicalPayload = canonicalPayload,
+                                                signature = success.base64Signature
+                                            )
                                         )
-                                    )
-                                    when (apiResult) {
-                                        is ApiResult.Success -> {
-                                            _uiState.update { current ->
-                                                current.copy(
-                                                    trustedPhoneCount = 1,
-                                                    activeSession = current.activeSession.copy(
-                                                        step = AuthFlowStep.COMPLETED_APPROVED,
-                                                        statusMessage = "Device successfully enrolled in backend.",
-                                                        errorMessage = null
+                                        when (apiResult) {
+                                            is ApiResult.Success -> {
+                                                registrationManager.setRegistrationStatus(DeviceRegistrationStatus.ACTIVE)
+                                                registrationManager.setRegisteredFingerprint(exportedKey.sha256Fingerprint)
+                                                _uiState.update { current ->
+                                                    current.copy(
+                                                        isRegistered = true,
+                                                        registrationStatus = DeviceRegistrationStatus.ACTIVE.name,
+                                                        trustedPhoneCount = 1,
+                                                        activeSession = current.activeSession.copy(
+                                                            step = AuthFlowStep.COMPLETED_APPROVED,
+                                                            statusMessage = "Device successfully enrolled in backend.",
+                                                            errorMessage = null
+                                                        )
                                                     )
-                                                )
+                                                }
+                                                onCompleted(true)
                                             }
-                                            onCompleted(true)
-                                        }
-                                        is ApiResult.HttpError -> {
-                                            _uiState.update { current ->
-                                                current.copy(
-                                                    activeSession = current.activeSession.copy(
-                                                        step = AuthFlowStep.FAILED,
-                                                        errorMessage = "Registration rejected: ${apiResult.message}"
+                                            is ApiResult.HttpError -> {
+                                                if (apiResult.code == 409 || apiResult.message.contains("DEVICE_ALREADY_REGISTERED", ignoreCase = true)) {
+                                                    registrationManager.setRegistrationStatus(DeviceRegistrationStatus.ACTIVE)
+                                                    _uiState.update { current ->
+                                                        current.copy(
+                                                            isRegistered = true,
+                                                            registrationStatus = DeviceRegistrationStatus.ACTIVE.name,
+                                                            trustedPhoneCount = 1,
+                                                            activeSession = current.activeSession.copy(
+                                                                step = AuthFlowStep.FAILED,
+                                                                errorMessage = "Perangkat ini sudah terdaftar di IPGuard. Silakan gunakan Sign In untuk melanjutkan."
+                                                            )
+                                                        )
+                                                    }
+                                                } else {
+                                                    _uiState.update { current ->
+                                                        current.copy(
+                                                            activeSession = current.activeSession.copy(
+                                                                step = AuthFlowStep.FAILED,
+                                                                errorMessage = "Registration rejected: ${apiResult.message}"
+                                                            )
+                                                        )
+                                                    }
+                                                }
+                                                onCompleted(false)
+                                            }
+                                            is ApiResult.NetworkError -> {
+                                                _uiState.update { current ->
+                                                    current.copy(
+                                                        activeSession = current.activeSession.copy(
+                                                            step = AuthFlowStep.FAILED,
+                                                            errorMessage = "Network error: ${apiResult.message}"
+                                                        )
                                                     )
-                                                )
+                                                }
+                                                onCompleted(false)
                                             }
-                                            onCompleted(false)
                                         }
-                                        is ApiResult.NetworkError -> {
-                                            _uiState.update { current ->
-                                                current.copy(
-                                                    activeSession = current.activeSession.copy(
-                                                        step = AuthFlowStep.FAILED,
-                                                        errorMessage = "Network error: ${apiResult.message}"
-                                                    )
+                                    } catch (e: Throwable) {
+                                        _uiState.update { current ->
+                                            current.copy(
+                                                activeSession = current.activeSession.copy(
+                                                    step = AuthFlowStep.FAILED,
+                                                    errorMessage = "Registration failed: ${e.message ?: e.javaClass.simpleName}"
                                                 )
-                                            }
-                                            onCompleted(false)
+                                            )
                                         }
+                                        onCompleted(false)
                                     }
                                 }
                             }

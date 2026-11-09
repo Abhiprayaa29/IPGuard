@@ -7,7 +7,6 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -35,25 +34,42 @@ import com.ipguard.authenticator.ui.theme.IPGuardGold
 import com.ipguard.authenticator.ui.theme.IPGuardMist
 import com.ipguard.authenticator.ui.theme.IPGuardMistMuted
 import com.ipguard.authenticator.ui.theme.IPGuardOutline
+import com.ipguard.authenticator.ui.theme.IPGuardTeal
 
 @Composable
 fun WelcomeScreen(
     uiState: AuthenticatorUiState,
     onStartSetup: () -> Unit,
+    onStartSignIn: () -> Unit = {},
     onReviewRequest: () -> Unit,
     onOpenDeviceInformation: () -> Unit,
     onOpenSecuritySettings: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val isRegistered = uiState.isRegistered
+    val hasKey = uiState.keyDiagnostic.hasKey
+
     AuthenticatorScreen(
-        eyebrow = stringResource(R.string.welcome_eyebrow),
-        title = stringResource(R.string.welcome_title),
-        subtitle = stringResource(R.string.welcome_subtitle),
+        eyebrow = if (isRegistered) {
+            stringResource(R.string.welcome_registered_eyebrow)
+        } else {
+            stringResource(R.string.welcome_eyebrow)
+        },
+        title = if (isRegistered) {
+            stringResource(R.string.welcome_registered_title)
+        } else {
+            stringResource(R.string.welcome_title)
+        },
+        subtitle = if (isRegistered) {
+            stringResource(R.string.welcome_registered_subtitle)
+        } else {
+            stringResource(R.string.welcome_subtitle)
+        },
         modifier = modifier
     ) {
         AppPill(
-            text = stringResource(R.string.welcome_build_badge),
-            tone = PillTone.GOLD
+            text = if (isRegistered) "HARDWARE AUTHENTICATOR" else stringResource(R.string.welcome_build_badge),
+            tone = if (isRegistered) PillTone.TEAL else PillTone.GOLD
         )
         Spacer(Modifier.height(22.dp))
 
@@ -61,13 +77,21 @@ fun WelcomeScreen(
             SectionTitle(text = stringResource(R.string.welcome_device_label))
             Spacer(Modifier.height(14.dp))
             Text(
-                text = stringResource(R.string.welcome_device_title),
+                text = if (isRegistered) {
+                    stringResource(R.string.welcome_registered_device_title)
+                } else {
+                    stringResource(R.string.welcome_device_title)
+                },
                 style = MaterialTheme.typography.titleLarge,
                 color = IPGuardMist
             )
             Spacer(Modifier.height(6.dp))
             Text(
-                text = stringResource(R.string.welcome_device_body),
+                text = if (isRegistered) {
+                    stringResource(R.string.welcome_registered_device_body)
+                } else {
+                    stringResource(R.string.welcome_device_body)
+                },
                 style = MaterialTheme.typography.bodyMedium,
                 color = IPGuardMistMuted
             )
@@ -75,15 +99,21 @@ fun WelcomeScreen(
             CardDivider()
             KeyValueRow(
                 label = stringResource(R.string.welcome_binding_label),
-                value = stringResource(R.string.welcome_binding_value)
+                value = if (isRegistered) {
+                    stringResource(R.string.welcome_registered_binding_value)
+                } else {
+                    stringResource(R.string.welcome_binding_value)
+                },
+                valueColor = if (isRegistered) IPGuardTeal else IPGuardMistMuted
             )
             KeyValueRow(
                 label = stringResource(R.string.welcome_key_label),
-                value = if (uiState.keyDiagnostic.hasKey) {
+                value = if (hasKey) {
                     stringResource(R.string.welcome_key_created_value)
                 } else {
                     stringResource(R.string.welcome_key_value)
-                }
+                },
+                valueColor = if (hasKey) IPGuardTeal else IPGuardGold
             )
             KeyValueRow(
                 label = stringResource(R.string.welcome_face_label),
@@ -97,14 +127,30 @@ fun WelcomeScreen(
         }
 
         Spacer(Modifier.height(14.dp))
-        NoticeCard(
-            text = stringResource(R.string.welcome_notice),
-            tone = NoticeTone.INFO
-        )
+        if (isRegistered && !hasKey) {
+            NoticeCard(
+                text = stringResource(R.string.welcome_key_missing_alert),
+                tone = NoticeTone.WARNING
+            )
+        } else if (isRegistered) {
+            NoticeCard(
+                text = stringResource(R.string.welcome_registered_notice),
+                tone = NoticeTone.INFO
+            )
+        } else {
+            NoticeCard(
+                text = stringResource(R.string.welcome_notice),
+                tone = NoticeTone.INFO
+            )
+        }
         Spacer(Modifier.height(24.dp))
         ScreenActions(
-            primaryLabel = stringResource(R.string.welcome_primary_action),
-            onPrimary = onStartSetup,
+            primaryLabel = if (isRegistered) {
+                stringResource(R.string.welcome_registered_primary_action)
+            } else {
+                stringResource(R.string.welcome_primary_action)
+            },
+            onPrimary = if (isRegistered) onStartSignIn else onStartSetup,
             secondaryLabel = stringResource(R.string.welcome_secondary_action),
             onSecondary = onReviewRequest
         )

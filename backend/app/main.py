@@ -1,3 +1,4 @@
+from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -7,17 +8,27 @@ from app.core.errors import register_exception_handlers
 
 settings = get_settings()
 
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    # Enforce production security constraints during startup (fail-closed)
+    if settings.app_env == "production":
+        _ = settings.notes_master_key_bytes
+    yield
+
+
 app = FastAPI(
     title=f"{settings.app_name} API",
     description="Local API foundation for IPGuard system readiness checks.",
     version=settings.app_version,
+    lifespan=lifespan,
 )
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origin_list,
     allow_credentials=False,
-    allow_methods=["GET", "POST", "OPTIONS"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allow_headers=["*"],
 )
 

@@ -67,6 +67,10 @@ class Device(Base):
         DateTime(timezone=True),
         nullable=True,
     )
+    unregistered_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True),
+        nullable=True,
+    )
 
     auth_sessions: Mapped[list["AuthSession"]] = relationship(
         "AuthSession",
