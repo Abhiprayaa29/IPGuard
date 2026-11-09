@@ -85,6 +85,7 @@ To ensure complete engineering transparency, features are categorized by their a
 - [x] **Secure Notes Digital Vault (M3 Core):** Zero-Knowledge encrypted personal notes using HKDF-SHA256, AES-256-GCM, educational Vigenère transformation layer, and strict owner isolation bound to the verified M2 hardware `device_id`.
 - [x] **Digital Asset Vault & File Protection (M3 Core):** True XChaCha20-Poly1305 AEAD encrypted file storage (`PyNaCl` / libsodium C-bindings), 24-byte CSPRNG nonces, 16-byte Poly1305 authentication tags, per-device HKDF-SHA256 key isolation, AAD context binding (`v1|device_id|asset_id`), atomic temporary-to-permanent file writes, and magic-byte signature validation blocking dangerous executable formats.
 - [x] **Full-Stack Asset Vault Console (M3):** React 19 single-page console with drag-and-drop file upload, upload progress tracking, category filtering (Images, Docs, Archives), in-memory decrypted image preview, Blob download stream with automatic URL revocation, rename dialog, permanent delete confirmation, and persistent `sessionStorage` hardware session binding.
+- [x] **End-to-End Browser & Physical Hardware Verification (M3):** Verified on live browser and physical Android device (Samsung SM-A546E). Tested image upload, in-memory preview, in-place rename, oversized file rejection (>50MB), PDF upload, dynamic filtering (Image/Doc), and cryptographic metadata inspection.
 - [x] **Fail-Closed Negative Security Enforcement:** Rejection of un-enrolled devices, expired challenges, and invalid origin headers.
 
 ### Planned Features (Future Milestones)
@@ -276,7 +277,7 @@ IPGuard/
 |---|---|:---:|---|
 | **M1** | Foundation & Architecture | **COMPLETE** | React frontend, FastAPI backend, PostgreSQL 17, Alembic migrations, Pytest suite. |
 | **M2** | Authentication & Device Security | **COMPLETE** | **M2.0–M2.3:** Keystore ECDSA P-256, BiometricPrompt + CryptoObject, CameraX/ML Kit.<br>**M2.4-B:** Backend device registry, session locking (SEC-01), origin validation (SEC-03).<br>**M2.4-C:** Web QR auth UI, countdown timer, anti QR-jacking channel binding (SEC-02).<br>**M2.4-D:** Android QR parsing, hardware signing, OkHttp integration.<br>**M2 Hardening:** One-Time Device Enrollment and Sign-In Only lifecycle (Physically Verified on Samsung A54 5G). |
-| **M3** | Core Cryptography & Asset Protection | **IN PROGRESS** | **Verified:** Zero-Knowledge Secure Notes Vault (AES-256-GCM + HKDF-SHA256 + Vigenère layer + M2 device-bound owner isolation).<br>**Planned:** Digital asset vault, streaming AES-256-GCM file encryption, Argon2id KDF, steganography. |
+| **M3** | Core Cryptography & Asset Protection | **COMPLETE** | **Digital Asset Vault:** True XChaCha20-Poly1305 AEAD encrypted file storage (`PyNaCl` / libsodium), 24-byte CSPRNG nonces, 16-byte Poly1305 auth tags, per-device HKDF-SHA256 key isolation, AAD context binding (`v1|device_id|asset_id`), atomic temporary-to-permanent file writes, and magic-byte signature validation.<br>**Secure Notes Vault:** AES-256-GCM + HKDF-SHA256 + Vigenère layer + M2 device-bound owner isolation.<br>**Full-Stack Console & E2E:** 100% verified via automated tests (114 backend tests) and physical Android hardware token (Samsung SM-A546E). |
 | **M4** | Integrity & Advanced Protection | **PLANNED** | Cryptographic hashing, SHA-256 Merkle-linked audit hash chain, PNG LSB steganography, tamper-evident alerts. |
 | **M5** | Integration, Testing & Release | **PLANNED** | End-to-end multi-tenant integration, penetration testing, packaging, and production deployment. |
 
@@ -381,6 +382,7 @@ npm run dev
 - **QR Sign-In Page:** `http://localhost:5173/login`
 - **Device Management:** `http://localhost:5173/devices`
 - **Secure Notes Vault:** `http://localhost:5173/notes`
+- **Digital Asset Vault:** `http://localhost:5173/assets`
 - **System Status Dashboard:** `http://localhost:5173/system-status`
 
 ---
@@ -424,7 +426,7 @@ IPGuard maintains strict test quality gates across all three subsystems:
 cd backend
 python -m pytest -v
 ```
-*Current result: 102 passed in 4.36s (M1 + M2 + M3 + Lifecycle suite).*
+*Current result: 114 passed across 10 test suites (M1 + M2 + M3 Secure Notes + M3 Digital Asset Vault + Lifecycle suite).*
 
 ### Frontend Typecheck & Production Build
 ```powershell
