@@ -82,17 +82,25 @@ To ensure complete engineering transparency, features are categorized by their a
 - [x] **Dynamic Web QR Authentication (M2.4-C):** Dynamic QR generation, 60s countdown timer, auto-refresh, and Anti QR-jacking browser secret binding (SEC-02).
 - [x] **Mobile Networking & Challenge Approval (M2.4-D):** OkHttp 4.12.0 client with connection lifecycle management, approval UI, and physical end-to-end verification.
 - [x] **One-Time Device Enrollment & Sign-In Only Lifecycle (M2 Hardening):** Hardware authenticators are enrolled once (`ACTIVE`), subsequent logins strictly perform hardware challenge-response (`Sign In`), duplicate enrollments are rejected with HTTP 409 `DEVICE_ALREADY_REGISTERED` via pessimistic row-level locking, and administrative unregistration decouples the device without deleting records.
-- [x] **Secure Notes Digital Vault (M3 Core):** Zero-Knowledge encrypted personal notes using HKDF-SHA256, AES-256-GCM, educational Vigenère transformation layer, and strict owner isolation bound to the verified M2 hardware `device_id`.
-- [x] **Digital Asset Vault & File Protection (M3 Core):** True XChaCha20-Poly1305 AEAD encrypted file storage (`PyNaCl` / libsodium C-bindings), 24-byte CSPRNG nonces, 16-byte Poly1305 authentication tags, per-device HKDF-SHA256 key isolation, AAD context binding (`v1|device_id|asset_id`), atomic temporary-to-permanent file writes, and magic-byte signature validation blocking dangerous executable formats.
-- [x] **Full-Stack Asset Vault Console (M3):** React 19 single-page console with drag-and-drop file upload, upload progress tracking, category filtering (Images, Docs, Archives), in-memory decrypted image preview, Blob download stream with automatic URL revocation, rename dialog, permanent delete confirmation, and persistent `sessionStorage` hardware session binding.
-- [x] **End-to-End Browser & Physical Hardware Verification (M3):** Verified on live browser and physical Android device (Samsung SM-A546E). Tested image upload, in-memory preview, in-place rename, oversized file rejection (>50MB), PDF upload, dynamic filtering (Image/Doc), and cryptographic metadata inspection.
-- [x] **Fail-Closed Negative Security Enforcement:** Rejection of un-enrolled devices, expired challenges, and invalid origin headers.
+- [x] **Secure Notes Digital Vault (M3 Core):** Zero-Knowledge encrypted personal notes using HKDF-SHA256 key derivation, AES-256-GCM authenticated encryption (random 96-bit IV, 128-bit authentication tag), educational Vigenère transformation layer, and strict owner isolation bound to the verified M2 hardware `device_id`.
+- [x] **Digital Asset Vault & File Protection (M3 Core):** True XChaCha20-Poly1305 AEAD encrypted file storage (`PyNaCl` / libsodium C-bindings), 24-byte CSPRNG nonces, 16-byte Poly1305 authentication tags, per-device HKDF-SHA256 key isolation, canonical AAD context binding (`v1|device_id|asset_id`), atomic temporary-to-permanent file writes (`.tmp` to permanent), and magic-byte signature validation blocking dangerous executable formats.
+- [x] **Full-Stack Asset Vault Console (M3 Core):** React 19 single-page console with drag-and-drop file upload, upload progress tracking, category filtering (Images, Docs, Archives), in-memory decrypted image preview, original binary download stream with automatic URL revocation, in-place rename dialog, permanent delete confirmation, and persistent `sessionStorage` hardware session binding.
+- [x] **Browser End-to-End Verification (M3 Core):** Comprehensive browser testing of Asset Vault workflows (upload, in-memory preview, in-place rename, oversized file >50MB rejection, PDF upload, dynamic filtering by Image/Doc category, and cryptographic metadata inspection) using authenticated sessions authorized via M2 hardware authenticator.
+- [x] **Fail-Closed Negative Security Enforcement:** Rejection of un-enrolled devices, expired challenges, unauthorized cross-device asset access, corrupted ciphertexts, and invalid origin headers.
 
 ### Planned Features (Future Milestones)
-- [ ] **M3 — Steganographic Watermarking:** PNG LSB steganography for copyright and watermark embedding.
-- [ ] **M4 — Cryptographic Integrity Auditing:** SHA-256 Merkle-linked audit hash chain, background integrity scheduler, and tamper detection.
-- [ ] **M4 — Hardware Attestation:** Remote Keymaster / Keymint certificate chain verification.
-- [ ] **M5 — Multi-Tenant Access Control & Production Deployment:** Role-based permissions, cloud deployment, and penetration audits.
+
+#### Milestone 4 — Integrity & Advanced Protection (PLANNED)
+- [ ] **Asset Integrity Monitoring:** Periodic SHA-256 asset integrity verification, detection of unauthorized file modifications, integrity status reporting, and automated tamper detection.
+- [ ] **Audit Hash Chain:** Append-only cryptographic audit event ledger with SHA-256 linked event hashes (`prev_hash` linkage), audit chain verification, and tamper-evident audit history (tamper-evident, not tamper-proof).
+- [ ] **Steganographic Watermarking:** PNG LSB (Least Significant Bit) steganography for watermark embedding, watermark extraction, extracted watermark validation, and detection of damaged or modified embedded watermarks.
+- [ ] **Hardware Attestation:** Remote Keymaster / Keymint certificate chain verification for Android Keystore authenticators.
+
+#### Milestone 5 — Advanced Integration, Blockchain Exploration & Release (PLANNED)
+- [ ] **Multi-Tenant Access Control & RBAC:** Multi-tenant user accounts (`users` table), role-based permissions, and enterprise organization mapping.
+- [ ] **Cross-Device Identity & Key Lifecycle:** Multi-device bindings per user context, cryptographic key rollover, and distributed revocation lists.
+- [ ] **Blockchain Exploration (Optional / Future Extension):** Public or consortium distributed ledger anchoring for cryptographic audit chain roots and timestamp proofs; strict architectural boundary ensuring zero plaintext assets or private keys are ever stored on-chain (strictly separated from the local audit hash chain).
+- [ ] **Production Hardening & Verification:** End-to-end multi-tenant integration testing, third-party security penetration testing, backup and disaster recovery validation, container packaging, and cloud production deployment.
 
 ---
 
@@ -273,13 +281,13 @@ IPGuard/
 
 ## 8. Milestone Roadmap
 
-| Milestone | Focus Area | Status | Verification Summary |
+| Milestone | Focus Area | Status | Verification Summary / Objectives |
 |---|---|:---:|---|
 | **M1** | Foundation & Architecture | **COMPLETE** | React frontend, FastAPI backend, PostgreSQL 17, Alembic migrations, Pytest suite. |
 | **M2** | Authentication & Device Security | **COMPLETE** | **M2.0–M2.3:** Keystore ECDSA P-256, BiometricPrompt + CryptoObject, CameraX/ML Kit.<br>**M2.4-B:** Backend device registry, session locking (SEC-01), origin validation (SEC-03).<br>**M2.4-C:** Web QR auth UI, countdown timer, anti QR-jacking channel binding (SEC-02).<br>**M2.4-D:** Android QR parsing, hardware signing, OkHttp integration.<br>**M2 Hardening:** One-Time Device Enrollment and Sign-In Only lifecycle (Physically Verified on Samsung A54 5G). |
-| **M3** | Core Cryptography & Asset Protection | **COMPLETE** | **Digital Asset Vault:** True XChaCha20-Poly1305 AEAD encrypted file storage (`PyNaCl` / libsodium), 24-byte CSPRNG nonces, 16-byte Poly1305 auth tags, per-device HKDF-SHA256 key isolation, AAD context binding (`v1|device_id|asset_id`), atomic temporary-to-permanent file writes, and magic-byte signature validation.<br>**Secure Notes Vault:** AES-256-GCM + HKDF-SHA256 + Vigenère layer + M2 device-bound owner isolation.<br>**Full-Stack Console & E2E:** 100% verified via automated tests (114 backend tests) and physical Android hardware token (Samsung SM-A546E). |
-| **M4** | Integrity & Advanced Protection | **PLANNED** | Cryptographic hashing, SHA-256 Merkle-linked audit hash chain, PNG LSB steganography, tamper-evident alerts. |
-| **M5** | Integration, Testing & Release | **PLANNED** | End-to-end multi-tenant integration, penetration testing, packaging, and production deployment. |
+| **M3** | Core Cryptography & Asset Protection | **COMPLETE** | **Digital Asset Vault:** True XChaCha20-Poly1305 AEAD encrypted file storage (`PyNaCl` / libsodium), 24-byte CSPRNG nonces, 16-byte Poly1305 auth tags, per-device HKDF-SHA256 key isolation, AAD context binding (`v1|device_id|asset_id`), atomic temporary-to-permanent file writes, and magic-byte signature validation.<br>**Secure Notes Vault:** AES-256-GCM + HKDF-SHA256 + Vigenère layer + M2 device-bound owner isolation.<br>**Full-Stack Console & E2E:** 100% verified via automated regression tests (114 backend tests) and browser E2E workflows authorized via physical Android hardware token (Samsung SM-A546E). |
+| **M4** | Integrity & Advanced Protection | **PLANNED** | **Asset Integrity Monitoring:** Periodic SHA-256 asset digest auditing and unauthorized modification detection.<br>**Audit Hash Chain:** Immutable-style append-only SHA-256 linked event hashes creating a tamper-evident audit history.<br>**Steganographic Watermarking:** PNG LSB watermark embedding, extraction, validation, and damage detection. |
+| **M5** | Advanced Integration, Blockchain Exploration & Release | **PLANNED** | **Access & Identity:** Multi-tenant access control (RBAC) and cross-device key lifecycle.<br>**Blockchain Exploration:** Optional public/consortium distributed ledger anchoring for audit chain roots and timestamp proofs (zero plaintext assets or keys on-chain).<br>**Release Readiness:** Penetration testing, backup/recovery validation, packaging, and production deployment. |
 
 ---
 
@@ -507,7 +515,9 @@ IPGuard implements defense-in-depth security:
 5. **Pessimistic Row-Level Locking (SEC-01):** Challenge consumption in PostgreSQL uses `SELECT ... FOR UPDATE` to guarantee single-use nonce consumption.
 6. **Origin Binding (SEC-03):** Authentication sessions are cryptographically bound to verified origins (e.g. `http://localhost:5173`).
 7. **One-Time Enrollment Enforcement:** Backend rejects duplicate enrollments with HTTP 409 `DEVICE_ALREADY_REGISTERED`, preventing silent key replacement or race conditions.
-8. **M3 Owner Isolation & Zero-Knowledge Storage:** Secure Notes are encrypted client-side using HKDF-SHA256 derived keys and AES-256-GCM. The database stores ciphertext only; notes are strictly isolated by `owner_id` mapped to the verified `device_id`.
+8. **M3 Secure Notes Zero-Knowledge Storage:** Secure Notes are encrypted client-side using HKDF-SHA256 derived keys and AES-256-GCM. The database stores ciphertext only; notes are strictly isolated by `owner_id` mapped to the verified `device_id`.
+9. **M3 Digital Asset Vault AEAD Isolation:** Digital assets are encrypted using libsodium XChaCha20-Poly1305 with per-device HKDF-SHA256 keys and AAD context binding (`v1|device_id|asset_id`). Atomic filesystem writes (`.tmp` to permanent) prevent partial writes, and unauthorized cross-device decryption attempts fail-closed with HTTP 404/403.
+10. **Tamper-Evident Integrity Assurance (Planned M4 & M5):** Continuous SHA-256 asset monitoring and append-only audit hash chains ensure tamper-evident event histories, with optional public/consortium blockchain anchoring planned for M5 without ever placing plaintext assets or private keys on-chain.
 
 ---
 
@@ -516,19 +526,22 @@ IPGuard implements defense-in-depth security:
 1. **Milestone Boundary (Device-Level Identity):** Milestones 1–3 establish device-level hardware identity and cryptographic challenge-response authentication. Multi-tenant username/password user accounts (`users` table) are scheduled for Milestone 4/5.
 2. **Single Active Device Policy:** The current device registry supports binding one active authenticator key per client context. Key rollover and multi-device revocation lists are scheduled for M4.
 3. **Physical Device Network Routing:** Connecting a physical mobile device requires either an active `adb reverse tcp:8000 tcp:8000` tunnel or configuring `IPGUARD_API_URL` to point to a reachable LAN IP address.
+4. **Asset Upload In-Memory Buffering:** Digital asset upload currently enforces an in-memory buffer up to 50 MB (preventing memory exhaustion / DoS attacks); true multi-part streaming file uploads are planned for future optimization.
+5. **Original Format Decryption:** Digital assets are decrypted in ephemeral browser memory and downloaded in their original binary format; proprietary `.ipguard` encrypted container export is not implemented.
+6. **Asynchronous File Cleanup:** Unlinking deleted assets is executed synchronously during asset deletion; an asynchronous background worker for orphan-file sweeps remains a future maintenance enhancement.
 
 ---
 
 ## 22. Collaboration Guide
 
-Detailed instructions for repository collaborators, permission models, and candidate issue roadmaps for Milestone 3 and 4 are documented in [`docs/COLLABORATION_GUIDE.md`](docs/COLLABORATION_GUIDE.md).
+Detailed instructions for repository collaborators, permission models, and candidate issue roadmaps for Milestone 4 and 5 are documented in [`docs/COLLABORATION_GUIDE.md`](docs/COLLABORATION_GUIDE.md).
 
 ---
 
 ## 23. Contribution Guide
 
 We welcome contributions from invited team members! Please consult [`CONTRIBUTING.md`](CONTRIBUTING.md) for:
-- Branching strategy (`feature/m3-...`, `feature/m4-...`, `fix/...`).
+- Branching strategy (`feature/m4-...`, `feature/m5-...`, `fix/...`).
 - Conventional Commit message formats.
 - Pull Request submission standards.
 - Zero-secrets verification rules.
