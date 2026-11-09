@@ -1,5 +1,9 @@
 """Pydantic request and response schemas."""
 
+from app.schemas.asset import (
+    AssetRenameRequest,
+    AssetResponse,
+)
 from app.schemas.auth import (
     DeviceRegisterRequest,
     DeviceResponse,
@@ -28,6 +32,8 @@ from app.schemas.note import (
 )
 
 __all__ = [
+    "AssetRenameRequest",
+    "AssetResponse",
     "DatabaseHealthResponse",
     "DeviceRegisterRequest",
     "DeviceResponse",

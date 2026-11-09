@@ -30,6 +30,8 @@ logs/
 pgdata/
 postgres-data/
 secrets/
+storage/
+backend/storage/
 
 # Editors and operating systems
 .idea/

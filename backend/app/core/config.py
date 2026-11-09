@@ -7,8 +7,9 @@ from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 BACKEND_DIR = Path(__file__).resolve().parents[2]
-# Exactly 32 bytes (256 bits) deterministic key for local development/test environments
+# Exactly 32 bytes (256 bits) deterministic keys for local development/test environments
 DEV_DEFAULT_NOTES_KEY = b"IPGuardDevMasterKey32BytesLong!!"
+DEV_DEFAULT_ASSET_VAULT_KEY = b"IPGuardAssetVaultDevKey32Bytes!!"
 
 
 class Settings(BaseSettings):
@@ -30,6 +31,18 @@ class Settings(BaseSettings):
     notes_master_key_b64: str | None = Field(
         default=None,
         description="Base64 encoded 32-byte master key for Secure Notes encryption.",
+    )
+    asset_vault_master_key_b64: str | None = Field(
+        default=None,
+        description="Base64 encoded 32-byte master key for Asset Vault XChaCha20-Poly1305 encryption.",
+    )
+    asset_vault_storage_dir: str | None = Field(
+        default=None,
+        description="Path to directory for encrypted asset binaries. Defaults to backend/storage.",
+    )
+    asset_vault_max_file_size_bytes: int = Field(
+        default=50 * 1024 * 1024,
+        description="Maximum allowed asset file upload size in bytes (default 50 MB).",
     )
 
     @property
@@ -58,6 +71,43 @@ class Settings(BaseSettings):
             )
 
         return raw_key
+
+    @property
+    def asset_vault_master_key_bytes(self) -> bytes:
+        """
+        Resolve the 32-byte master key for Asset Vault XChaCha20-Poly1305 encryption.
+        Fails closed in production if not explicitly set or not valid 32-byte Base64.
+        """
+        if not self.asset_vault_master_key_b64:
+            if self.app_env == "production":
+                raise ValueError(
+                    "CRITICAL: ASSET_VAULT_MASTER_KEY_B64 is mandatory in production environments."
+                )
+            return DEV_DEFAULT_ASSET_VAULT_KEY
+
+        try:
+            raw_key = base64.b64decode(self.asset_vault_master_key_b64, validate=True)
+        except Exception as err:
+            raise ValueError(
+                "ASSET_VAULT_MASTER_KEY_B64 must be a valid Base64 encoded string."
+            ) from err
+
+        if len(raw_key) != 32:
+            raise ValueError(
+                f"ASSET_VAULT_MASTER_KEY_B64 must decode to exactly 32 bytes (got {len(raw_key)})."
+            )
+
+        return raw_key
+
+    @property
+    def storage_directory(self) -> Path:
+        """Resolve persistent storage directory for encrypted asset binaries."""
+        if self.asset_vault_storage_dir:
+            path = Path(self.asset_vault_storage_dir).resolve()
+        else:
+            path = BACKEND_DIR / "storage"
+        path.mkdir(parents=True, exist_ok=True)
+        return path
 
     @property
     def cors_origin_list(self) -> list[str]:
