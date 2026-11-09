@@ -1,8 +1,8 @@
 # IPGuard — Secure Digital Asset Protection
 
-[![Milestone](https://img.shields.io/badge/Milestone-M3--Integrated-brightgreen.svg)](docs/M3_ALIZA_ASSET_VAULT_INTEGRATION.md)
+[![Milestone](https://img.shields.io/badge/Milestone-M3--Complete-brightgreen.svg)](docs/M3_ALIZA_ASSET_VAULT_INTEGRATION.md)
 [![Backend Tests](https://img.shields.io/badge/Backend%20Tests-114%2F114%20PASS-success.svg)](backend/tests/)
-[![Android Tests](https://img.shields.io/badge/Android%20Tests-37%2F37%20PASS-success.svg)](mobile-authenticator/app/src/test/)
+[![Android Tests](https://img.shields.io/badge/Android%20Tests-59%2F59%20PASS-success.svg)](mobile-authenticator/app/src/test/)
 [![Python](https://img.shields.io/badge/Python-3.13-blue.svg)](https://www.python.org/)
 [![Node](https://img.shields.io/badge/Node-22%20LTS-green.svg)](https://nodejs.org/)
 [![Android API](https://img.shields.io/badge/Android%20API-28--36-orange.svg)](docs/ANDROID_COMPATIBILITY.md)
