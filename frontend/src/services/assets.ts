@@ -1,5 +1,12 @@
 import { apiClient, getApiErrorMessage } from './api'
-import type { Asset, AssetRenameRequest } from '../types/assets'
+import type {
+  Asset,
+  AssetRenameRequest,
+  StegoEmbedRequest,
+  StegoEmbedResponse,
+  WatermarkVerifyResponse,
+  WatermarkExtractResponse,
+} from '../types/assets'
 
 function authHeaders(token: string) {
   const clean = token.startsWith('Bearer ') ? token : `Bearer ${token}`
@@ -100,6 +107,65 @@ export async function deleteAsset(
     await apiClient.delete(`/assets/${assetId}`, {
       headers: authHeaders(token),
     })
+  } catch (error) {
+    throw new Error(getApiErrorMessage(error))
+  }
+}
+
+export async function embedWatermark(
+  token: string,
+  assetId: string,
+  payloadB64: string,
+): Promise<StegoEmbedResponse> {
+  try {
+    const requestBody: StegoEmbedRequest = { payload_b64: payloadB64 }
+    const response = await apiClient.post<StegoEmbedResponse>(
+      `/assets/${assetId}/steganography/embed`,
+      requestBody,
+      {
+        headers: authHeaders(token),
+        timeout: 60_000,
+      },
+    )
+    return response.data
+  } catch (error) {
+    throw new Error(getApiErrorMessage(error))
+  }
+}
+
+export async function verifyWatermark(
+  token: string,
+  assetId: string,
+): Promise<WatermarkVerifyResponse> {
+  try {
+    const response = await apiClient.post<WatermarkVerifyResponse>(
+      `/assets/${assetId}/steganography/verify`,
+      {},
+      {
+        headers: authHeaders(token),
+        timeout: 60_000,
+      },
+    )
+    return response.data
+  } catch (error) {
+    throw new Error(getApiErrorMessage(error))
+  }
+}
+
+export async function extractWatermark(
+  token: string,
+  assetId: string,
+): Promise<WatermarkExtractResponse> {
+  try {
+    const response = await apiClient.post<WatermarkExtractResponse>(
+      `/assets/${assetId}/steganography/extract`,
+      {},
+      {
+        headers: authHeaders(token),
+        timeout: 60_000,
+      },
+    )
+    return response.data
   } catch (error) {
     throw new Error(getApiErrorMessage(error))
   }

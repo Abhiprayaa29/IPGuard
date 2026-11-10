@@ -1,0 +1,55 @@
+{
+  "timestamp": "2026-11-09T23:55:35.072429+00:00",
+  "status": "PASS",
+  "browser": "Chromium 1366x860",
+  "device_id": "origin-bound-device-01",
+  "master_image": {
+    "path": "D:\\Projects\\IPGuard\\docs\\screenshots\\m4_acceptance\\master_artwork_256.png",
+    "dimensions": "256x256",
+    "format": "PNG",
+    "mode": "RGB"
+  },
+  "downloaded_derivative": {
+    "path": "D:\\Projects\\IPGuard\\docs\\screenshots\\m4_acceptance\\master_artwork_256.watermarked.png",
+    "dimensions": "256x256",
+    "format": "PNG",
+    "mode": "RGB",
+    "psnr_db": 68.37,
+    "mse": 0.009471,
+    "magic_bytes_valid": true,
+    "watermark_id": "380fd58b-7fb2-4ab6-8ea2-40c06c8b31f3",
+    "source_asset_id": "f4da2a0b-61ae-4f66-b94b-513fc73c6028",
+    "format_version": 1,
+    "signature_valid": true,
+    "sha256_digest_valid": true
+  },
+  "extracted_metadata": {
+    "copyright": "\u00a9 2026 IPGuard Vault Acceptance Test. All rights reserved.",
+    "license": "Enterprise Proprietary License (M4 Verified)",
+    "text": "Confidential - Authorized Production Review Build",
+    "description": "Master derivative with hardware-bound Ed25519 digital watermark.",
+    "timestamp": "2026-11-09T23:55:30.445Z"
+  },
+  "tamper_detection": {
+    "tested": true,
+    "pixel_modified": "(0, 0) red LSB",
+    "verified": false,
+    "rejection_status": "WATERMARK_NOT_FOUND"
+  },
+  "browser_health": {
+    "console_logs_count": 9,
+    "page_errors": [],
+    "failed_requests": []
+  },
+  "screenshots": [
+    "01_asset_vault_initial.png",
+    "02_asset_uploaded.png",
+    "03_watermark_config_modal.png",
+    "04_embed_success.png",
+    "05_vault_with_derivative.png",
+    "06_verify_success_modal.png",
+    "07_extract_payload_modal.png",
+    "08_derivative_inspect_modal.png",
+    "09_watermarked_filter_tab.png"
+  ]
+}

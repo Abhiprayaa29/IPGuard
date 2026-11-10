@@ -1,6 +1,6 @@
 # Contributing to IPGuard
 
-Thank you for your interest in contributing to **IPGuard — Secure Digital Asset Protection**. 
+Thank you for your interest in contributing to **IPGuard — Secure Digital Asset Protection Platform**.
 
 IPGuard is an engineering-first security platform combining hardware-backed Android cryptography, an asynchronous Python FastAPI backend, and a modern React management console. To maintain high code quality and security guarantees, all contributors are required to follow these guidelines.
 
@@ -12,11 +12,11 @@ Our repository maintains strict branch hygiene:
 
 - `main`: Protected production-ready branch. Direct pushes to `main` are strictly forbidden. All changes must arrive via reviewed Pull Requests.
 - Feature branches: Created off the latest `main`:
-  - `feature/<short-description>` (e.g., `feature/argon2id-key-derivation`, `feature/qr-visual-feedback`)
+  - `feature/<short-description>` (e.g., `feature/audit-hash-chain`, `feature/stego-verification-ui`)
 - Bug fix branches:
   - `fix/<short-description>` (e.g., `fix/connection-pool-leak`, `fix/qr-timer-race`)
-- Documentation / Maintenance:
-  - `docs/<short-description>` or `chore/<short-description>`
+- Release branches:
+  - `release/<release-name>` (e.g., `release/m0-m4-final`)
 
 ---
 
@@ -40,84 +40,83 @@ Format:
 - `refactor`: Code reorganization with no functional or API changes.
 - `test`: Adding missing tests or improving existing test coverage.
 - `chore`: Tooling, build system, or dependencies maintenance.
+- `release`: Preparing a formal version release.
 
 ### Scopes
 - `backend`: Changes to FastAPI routes, models, services, or database migrations.
 - `frontend`: Changes to React components, hooks, pages, or styling.
 - `android`: Changes to Kotlin authenticator, Keystore, or Compose UI.
+- `stego`: Changes to PNG LSB steganography, framing, or Ed25519 signing.
+- `vault`: Changes to XChaCha20-Poly1305 storage or key derivation.
 - `security`: Security patches, policy enforcements, or cryptographic updates.
 - `ci`: Changes to GitHub Actions workflows or automation scripts.
 
-### Examples
-- `feat(backend): implement origin whitelisting for auth session creation`
-- `fix(android): close OkHttp connections immediately over ADB reverse`
-- `docs(m2): update cross-device android compatibility matrix`
-
 ---
 
-## 3. Pull Request Process
+## 3. Local Development Setup & Prerequisites
 
-1. **Sync with Main:** Before starting, ensure your local `main` is up to date:
+### Prerequisites
+- Python 3.13.x
+- Node.js >= 22.12.0
+- PostgreSQL 17.x
+- Android Studio with Android SDK API 28–36 (for mobile development)
+
+### Setup Steps
+1. Clone the repository:
    ```bash
-   git checkout main
-   git pull origin main
-   git checkout -b feature/your-feature-name
+   git clone https://github.com/Abhiprayaa29/IPGuard.git
+   cd IPGuard
    ```
-2. **Implement & Test Locally:** Write tests alongside your implementation. All tests must pass before opening a PR.
-3. **Local Pre-Push Verification:** Run the full validation suite:
-   ```powershell
-   # Backend test suite
-   cd backend && python -m pytest -v
-
-   # Frontend build & typecheck
-   cd ../frontend && npm run build
-
-   # Android unit tests
-   cd ../mobile-authenticator && .\gradlew.bat testDebugUnitTest --no-daemon
+2. Set up Backend:
+   ```bash
+   cd backend
+   python -m venv .venv
+   source .venv/bin/activate  # Or on Windows: .\.venv\Scripts\Activate.ps1
+   pip install -r requirements.txt
+   cp .env.example .env       # Configure your local database password
+   alembic upgrade head       # Apply migrations 0001 through 0009
    ```
-4. **Open Pull Request:**
-   - Push your branch to `origin`.
-   - Open a PR against `main`.
-   - Fill out the provided **Pull Request Template** completely.
-   - Attach test evidence, terminal outputs, or screenshots when relevant.
-5. **Code Review:** Every PR requires at least one approving review from a core maintainer. Address review comments promptly.
+3. Set up Frontend:
+   ```bash
+   cd ../frontend
+   npm install
+   npm run typecheck
+   ```
 
 ---
 
-## 4. Zero Secrets & Security Hygiene Policy
+## 4. Testing Requirements Before Submitting a PR
 
-**IPGuard handles sensitive cryptographic operations and security tokens. Committing secrets will result in immediate PR rejection.**
+Every pull request must satisfy all automated quality gates:
 
-- **Never commit `.env` files:** Only update `.env.example` templates with sanitized placeholder values.
-- **Never commit keystores or keys:** Never commit `.jks`, `.keystore`, private keys (`.pem`, `.key`), or client secrets.
-- **No hardware identifiers:** Never collect or transmit IMEI, MAC addresses, or hardware serial numbers in mobile code.
-- **Review unstaged files:** Always run `git status` and `git diff` before staging to verify that no temporary or sensitive files are included.
+1. **Backend Test Suite:**
+   ```bash
+   cd backend
+   pytest -v
+   ```
+   *Requirement:* All unit, integration, and API tests must PASS (0 failures, 0 regressions).
 
----
+2. **Frontend Typecheck & Build:**
+   ```bash
+   cd frontend
+   npm run typecheck
+   npm run build
+   ```
+   *Requirement:* Zero TypeScript errors and clean production build.
 
-## 5. Engineering & Code Standards
+3. **Database Migrations:**
+   Ensure new schema modifications have an associated forward and reverse Alembic migration script.
 
-### Python (Backend)
-- Adhere to PEP 8 style standards.
-- Use strict type annotations (`typing`, Pydantic v2 schemas).
-- Database operations involving state modification must use transactions and pessimistic row locking where concurrent manipulation is possible (`with_for_update()`).
-- Keep controllers thin and place business logic into `app/services/`.
-
-### TypeScript / React (Frontend)
-- Enable TypeScript strict mode; avoid the use of `any`.
-- Keep components focused and modular.
-- Extract complex side-effects and asynchronous polling loops into reusable hooks (e.g., `useQrAuth.ts`).
-- Handle request cancellations and clean up all `setInterval` / `setTimeout` timers on component unmount.
-
-### Kotlin (Android Authenticator)
-- Follow standard Kotlin coding conventions and Android Jetpack guidelines.
-- Target modern Android versions (minSdk 28, compileSdk/targetSdk 36).
-- Use Android Keystore for key generation; never store raw private keys in SharedPreferences, SQLite, or memory dumps.
-- Always require user authentication (`setUserAuthenticationRequired(true)`) for cryptographic keys.
-- Ensure all networking calls over OkHttp explicitly manage connection lifecycles and handle connection resets cleanly.
+4. **Security Policy:**
+   Never commit `.env` files, private cryptographic seeds, or temporary tokens.
 
 ---
 
-## 6. Need Help?
+## 5. Pull Request Submission Checklist
 
-If you have questions about architectural decisions, milestone boundaries, or how to set up your local environment, feel free to open a GitHub Discussion or reach out to the project lead [@Abhiprayaa29](https://github.com/Abhiprayaa29).
+- [ ] Branch is rebased against the latest `main`.
+- [ ] Conventional commit messages are used.
+- [ ] Backend tests pass completely.
+- [ ] Frontend typecheck and build pass completely.
+- [ ] No private keys or secrets are committed.
+- [ ] Documentation is updated if user workflows or API contracts change.
