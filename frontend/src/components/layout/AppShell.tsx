@@ -1,4 +1,4 @@
-import { Activity, FolderLock, Lock, QrCode, ShieldCheck, Smartphone } from 'lucide-react'
+import { Activity, FolderLock, Lock, QrCode, ShieldCheck, Smartphone, Sparkles } from 'lucide-react'
 import { Link, NavLink, Outlet } from 'react-router-dom'
 
 export function AppShell() {
@@ -101,6 +101,20 @@ export function AppShell() {
             >
               <FolderLock size={14} />
               <span className="hidden sm:inline">Asset Vault</span>
+            </NavLink>
+
+            <NavLink
+              to="/steganography"
+              className={({ isActive }) =>
+                `flex items-center gap-2 rounded-xl px-3 py-1.5 text-xs font-semibold transition ${
+                  isActive
+                    ? 'border border-ip-teal-400/30 bg-ip-teal-400/10 text-ip-teal-300 shadow-sm'
+                    : 'text-slate-400 hover:text-white hover:bg-white/5'
+                }`
+              }
+            >
+              <Sparkles size={14} />
+              <span className="hidden sm:inline">Stego Lab</span>
             </NavLink>
 
             <NavLink
