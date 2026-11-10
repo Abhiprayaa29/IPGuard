@@ -39,6 +39,13 @@ fun IPGuardApp(
                 }
             }
         },
+        onContinueExistingAuth = { activity: FragmentActivity, onDone: (Boolean) -> Unit ->
+            if (uiState.activeSession.payload != null) {
+                viewModel.continueWithExistingAuthFallback(activity) { success ->
+                    onDone(success)
+                }
+            }
+        },
         onApprovalError = { viewModel.reportApprovalHostUnavailable() },
         onTestSign = { activity: FragmentActivity ->
             val challenge = "IPGUARD_MANUAL_TEST_${System.currentTimeMillis()}".toByteArray(Charsets.UTF_8)
@@ -59,6 +66,10 @@ fun IPGuardApp(
         },
         onCancelActiveSession = {
             viewModel.cancelActiveSession()
+        },
+        onSyncBackend = {
+            viewModel.refreshAll()
+            viewModel.syncRegistrationWithBackend()
         },
         modifier = modifier
     )

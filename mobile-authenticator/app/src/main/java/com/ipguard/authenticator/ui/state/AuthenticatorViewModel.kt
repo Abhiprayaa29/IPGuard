@@ -2,6 +2,7 @@ package com.ipguard.authenticator.ui.state
 
 import android.app.Application
 import android.os.Build
+import android.util.Log
 import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
@@ -13,6 +14,7 @@ import com.ipguard.authenticator.network.OkHttpAuthApiService
 import com.ipguard.authenticator.network.RegisterDeviceRequest
 import com.ipguard.authenticator.network.VerifySessionRequest
 import com.ipguard.authenticator.security.AndroidKeystoreDeviceKeyManager
+import com.ipguard.authenticator.security.BiometricFaceGateManager
 import com.ipguard.authenticator.security.DeviceAuthenticationPolicy
 import com.ipguard.authenticator.security.DeviceIdManager
 import com.ipguard.authenticator.security.DeviceKeyManager
@@ -22,6 +24,8 @@ import com.ipguard.authenticator.security.DeviceLockScreenRequiredException
 import com.ipguard.authenticator.security.DeviceRegistrationManager
 import com.ipguard.authenticator.security.DeviceRegistrationStatus
 import com.ipguard.authenticator.security.DeviceSigningAuthenticator
+import com.ipguard.authenticator.security.FaceGateAvailability
+import com.ipguard.authenticator.security.FaceGateResult
 import com.ipguard.authenticator.security.FullVerificationSuiteResult
 import com.ipguard.authenticator.security.SigningKeyPolicyViolationException
 import com.ipguard.authenticator.security.SigningOutcome
@@ -31,6 +35,9 @@ import com.ipguard.authenticator.security.qr.QrAuthPayload
 import com.ipguard.authenticator.security.qr.QrAuthPayloadParser
 import com.ipguard.authenticator.security.qr.QrPayloadValidationResult
 import com.ipguard.authenticator.security.qr.QrSessionType
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
@@ -42,7 +49,8 @@ class AuthenticatorViewModel @JvmOverloads constructor(
     private val authenticator: DeviceSigningAuthenticator = DeviceSigningAuthenticator(keyManager),
     private val apiService: AuthApiService = OkHttpAuthApiService(),
     private val qrParser: QrAuthPayloadParser = QrAuthPayloadParser(),
-    private val registrationManager: DeviceRegistrationManager = DeviceRegistrationManager(application)
+    private val registrationManager: DeviceRegistrationManager = DeviceRegistrationManager(application),
+    private val faceGateManager: BiometricFaceGateManager = BiometricFaceGateManager()
 ) : AndroidViewModel(application) {
 
     private val deviceIdManager = DeviceIdManager(application)
@@ -82,22 +90,65 @@ class AuthenticatorViewModel @JvmOverloads constructor(
 
     fun syncRegistrationWithBackend() {
         viewModelScope.launch {
+            _uiState.update { current ->
+                current.copy(
+                    isSyncingBackend = true,
+                    connectionState = current.connectionState.copy(
+                        status = BackendConnectionStatus.CHECKING,
+                        statusLabel = "Verifying backend..."
+                    )
+                )
+            }
+            val nowLabel = currentTimeLabel()
             try {
+                val healthResult = apiService.checkHealth()
+                if (healthResult is ApiResult.NetworkError || healthResult is ApiResult.HttpError) {
+                    val reason = when (healthResult) {
+                        is ApiResult.NetworkError -> healthResult.message
+                        is ApiResult.HttpError -> "HTTP ${healthResult.code}: ${healthResult.message}"
+                        else -> "Backend unreachable"
+                    }
+                    _uiState.update { current ->
+                        current.copy(
+                            isSyncingBackend = false,
+                            connectionState = current.connectionState.copy(
+                                status = BackendConnectionStatus.UNAVAILABLE,
+                                statusLabel = "Offline / Unreachable",
+                                detailMessage = reason,
+                                lastSyncedLabel = nowLabel
+                            )
+                        )
+                    }
+                    return@launch
+                }
+
                 val deviceId = deviceIdManager.getOrCreateDeviceId()
                 when (val result = apiService.checkDeviceStatus(deviceId)) {
                     is ApiResult.Success -> {
-                        val status = result.data.registrationStatus
-                        if (status.equals("UNREGISTERED", ignoreCase = true)) {
+                        val effectiveStatus = when {
+                            result.data.registrationStatus.equals("UNREGISTERED", ignoreCase = true) -> "UNREGISTERED"
+                            result.data.status.equals("REVOKED", ignoreCase = true) -> "REVOKED"
+                            result.data.status.equals("ACTIVE", ignoreCase = true) -> "ACTIVE"
+                            else -> result.data.registrationStatus
+                        }
+                        if (effectiveStatus == "UNREGISTERED") {
                             registrationManager.clearRegistration()
                             _uiState.update { current ->
                                 current.copy(
                                     isRegistered = false,
                                     registrationStatus = "UNREGISTERED",
-                                    trustedPhoneCount = 0
+                                    trustedPhoneCount = 0,
+                                    isSyncingBackend = false,
+                                    connectionState = current.connectionState.copy(
+                                        status = BackendConnectionStatus.CONNECTED,
+                                        statusLabel = "Connected (TLS / Localhost)",
+                                        detailMessage = null,
+                                        lastSyncedLabel = nowLabel
+                                    )
                                 )
                             }
-                        } else if (status.equals("ACTIVE", ignoreCase = true) || status.equals("REVOKED", ignoreCase = true)) {
-                            val regStatus = if (status.equals("ACTIVE", ignoreCase = true)) {
+                        } else if (effectiveStatus == "ACTIVE" || effectiveStatus == "REVOKED") {
+                            val regStatus = if (effectiveStatus == "ACTIVE") {
                                 DeviceRegistrationStatus.ACTIVE
                             } else {
                                 DeviceRegistrationStatus.REVOKED
@@ -107,20 +158,117 @@ class AuthenticatorViewModel @JvmOverloads constructor(
                                 current.copy(
                                     isRegistered = true,
                                     registrationStatus = regStatus.name,
-                                    trustedPhoneCount = 1
+                                    trustedPhoneCount = 1,
+                                    isSyncingBackend = false,
+                                    connectionState = current.connectionState.copy(
+                                        status = BackendConnectionStatus.CONNECTED,
+                                        statusLabel = "Connected (TLS / Localhost)",
+                                        detailMessage = null,
+                                        lastSyncedLabel = nowLabel
+                                    )
+                                )
+                            }
+                        } else {
+                            _uiState.update { current ->
+                                current.copy(
+                                    isSyncingBackend = false,
+                                    connectionState = current.connectionState.copy(
+                                        status = BackendConnectionStatus.CONNECTED,
+                                        statusLabel = "Connected",
+                                        detailMessage = null,
+                                        lastSyncedLabel = nowLabel
+                                    )
                                 )
                             }
                         }
+                        appendActivity("Backend Status Sync", "Status confirmed: $effectiveStatus", effectiveStatus == "ACTIVE")
                     }
-                    else -> {}
+                    is ApiResult.HttpError -> {
+                        _uiState.update { current ->
+                            current.copy(
+                                isSyncingBackend = false,
+                                connectionState = current.connectionState.copy(
+                                    status = BackendConnectionStatus.UNAVAILABLE,
+                                    statusLabel = "Backend Error (${result.code})",
+                                    detailMessage = result.message,
+                                    lastSyncedLabel = nowLabel
+                                )
+                            )
+                        }
+                    }
+                    is ApiResult.NetworkError -> {
+                        _uiState.update { current ->
+                            current.copy(
+                                isSyncingBackend = false,
+                                connectionState = current.connectionState.copy(
+                                    status = BackendConnectionStatus.UNAVAILABLE,
+                                    statusLabel = "Offline / Timeout",
+                                    detailMessage = result.message,
+                                    lastSyncedLabel = nowLabel
+                                )
+                            )
+                        }
+                    }
                 }
-            } catch (_: Throwable) {}
+            } catch (e: Throwable) {
+                _uiState.update { current ->
+                    current.copy(
+                        isSyncingBackend = false,
+                        connectionState = current.connectionState.copy(
+                            status = BackendConnectionStatus.UNAVAILABLE,
+                            statusLabel = "Offline",
+                            detailMessage = e.message ?: e.javaClass.simpleName,
+                            lastSyncedLabel = nowLabel
+                        )
+                    )
+                }
+            }
+        }
+    }
+
+    private fun evaluateFaceGateState(preserveProgress: Boolean = false): FaceGateState {
+        val current = _uiState.value.faceGate
+        return when (val availability = faceGateManager.evaluateAvailability(getApplication())) {
+            is FaceGateAvailability.Available -> {
+                val keepStatus = preserveProgress && (
+                    current.status == FaceGateStatus.PASSED ||
+                        current.status == FaceGateStatus.AUTHENTICATING
+                    )
+                FaceGateState(
+                    availabilityLabel = "BIOMETRIC_WEAK Available",
+                    isWeakBiometricAvailable = true,
+                    isNotEnrolled = false,
+                    status = if (keepStatus) current.status else FaceGateStatus.READY,
+                    statusMessage = if (keepStatus) current.statusMessage else null,
+                    errorMessage = if (keepStatus) current.errorMessage else null,
+                    fallbackAuthorized = false
+                )
+            }
+            is FaceGateAvailability.NotEnrolled -> FaceGateState(
+                availabilityLabel = "Not Enrolled",
+                isWeakBiometricAvailable = false,
+                isNotEnrolled = true,
+                status = FaceGateStatus.UNAVAILABLE,
+                statusMessage = null,
+                errorMessage = availability.reason,
+                fallbackAuthorized = current.fallbackAuthorized
+            )
+            is FaceGateAvailability.Unavailable -> FaceGateState(
+                availabilityLabel = "Not Supported",
+                isWeakBiometricAvailable = false,
+                isNotEnrolled = false,
+                status = FaceGateStatus.UNAVAILABLE,
+                statusMessage = null,
+                errorMessage = availability.reason,
+                fallbackAuthorized = current.fallbackAuthorized
+            )
         }
     }
 
     fun refreshAuthPolicy() {
         try {
             val policy = DeviceAuthenticationPolicy.evaluate(getApplication())
+            val nextFaceGate = evaluateFaceGateState(preserveProgress = true)
             _uiState.update { current ->
                 current.copy(
                     authPolicy = AuthenticationPolicyState(
@@ -129,7 +277,8 @@ class AuthenticatorViewModel @JvmOverloads constructor(
                         credentialStatus = policy.deviceCredentialLabel,
                         policyExplanation = policy.explanation,
                         isFingerprintMandatory = false
-                    )
+                    ),
+                    faceGate = nextFaceGate
                 )
             }
         } catch (e: Throwable) {
@@ -294,9 +443,11 @@ class AuthenticatorViewModel @JvmOverloads constructor(
                     origin = payload.origin,
                     challenge = payload.buildCanonicalPayload()
                 )
+                val resetFaceGate = evaluateFaceGateState(preserveProgress = false)
                 _uiState.update { current ->
                     current.copy(
                         previewRequest = request,
+                        faceGate = resetFaceGate,
                         activeSession = ActiveAuthSessionState(
                             step = AuthFlowStep.AWAITING_USER_CONSENT,
                             payload = payload,
@@ -313,6 +464,11 @@ class AuthenticatorViewModel @JvmOverloads constructor(
                 }
 
                 onValid(payload)
+                appendActivity(
+                    "QR Challenge Detected",
+                    "${payload.type.name} for ${payload.origin}",
+                    true
+                )
             }
             is QrPayloadValidationResult.Invalid -> {
                 _uiState.update { current ->
@@ -420,6 +576,170 @@ class AuthenticatorViewModel @JvmOverloads constructor(
             }
         }
 
+        val faceGateState = evaluateFaceGateState(preserveProgress = true)
+        _uiState.update { current -> current.copy(faceGate = faceGateState) }
+
+        if (faceGateState.isWeakBiometricAvailable) {
+            if (faceGateState.status == FaceGateStatus.PASSED) {
+                executeCryptoSigningAndSubmit(activity, payload, onCompleted)
+                return
+            }
+
+            _uiState.update { current ->
+                current.copy(
+                    faceGate = current.faceGate.copy(
+                        status = FaceGateStatus.AUTHENTICATING,
+                        statusMessage = "Complete Face Recognition on your device",
+                        errorMessage = null
+                    )
+                )
+            }
+
+            faceGateManager.authenticate(
+                activity = activity,
+                title = "Verify Your Identity",
+                subtitle = "Authenticate using your device biometrics",
+                negativeButtonText = getString(R.string.action_cancel),
+                onResult = { faceResult ->
+                    when (faceResult) {
+                        is FaceGateResult.Success -> {
+                            appendActivity(
+                                "Face Authentication",
+                                "Biometric Authentication Successful (BIOMETRIC_WEAK)",
+                                true
+                            )
+                            _uiState.update { current ->
+                                current.copy(
+                                    faceGate = current.faceGate.copy(
+                                        status = FaceGateStatus.PASSED,
+                                        statusMessage = "Biometric Authentication Successful — Authorize Cryptographic Signing",
+                                        errorMessage = null
+                                    )
+                                )
+                            }
+                            executeCryptoSigningAndSubmit(activity, payload, onCompleted)
+                        }
+                        is FaceGateResult.AttemptFailed -> {
+                            appendActivity(
+                                "Face Authentication",
+                                "Attempt did not match — retry required",
+                                false
+                            )
+                            _uiState.update { current ->
+                                current.copy(
+                                    faceGate = current.faceGate.copy(
+                                        status = FaceGateStatus.FAILED,
+                                        statusMessage = null,
+                                        errorMessage = "Face Authentication Failed — Please Retry"
+                                    )
+                                )
+                            }
+                        }
+                        is FaceGateResult.Cancelled -> {
+                            appendActivity(
+                                "Face Authentication",
+                                "Biometric prompt cancelled",
+                                false
+                            )
+                            _uiState.update { current ->
+                                current.copy(
+                                    faceGate = current.faceGate.copy(
+                                        status = FaceGateStatus.FAILED,
+                                        statusMessage = null,
+                                        errorMessage = "Face Authentication Failed — Please Retry (${faceResult.message})"
+                                    )
+                                )
+                            }
+                        }
+                        is FaceGateResult.Lockout -> {
+                            appendActivity(
+                                "Face Authentication",
+                                "Biometric lockout active",
+                                false
+                            )
+                            _uiState.update { current ->
+                                current.copy(
+                                    faceGate = current.faceGate.copy(
+                                        status = FaceGateStatus.LOCKED_OUT,
+                                        statusMessage = null,
+                                        errorMessage = faceResult.message
+                                    )
+                                )
+                            }
+                        }
+                        is FaceGateResult.NotEnrolled -> {
+                            _uiState.update { current ->
+                                current.copy(
+                                    faceGate = current.faceGate.copy(
+                                        isWeakBiometricAvailable = false,
+                                        isNotEnrolled = true,
+                                        availabilityLabel = "Not Enrolled",
+                                        status = FaceGateStatus.UNAVAILABLE,
+                                        statusMessage = null,
+                                        errorMessage = faceResult.message
+                                    )
+                                )
+                            }
+                        }
+                        is FaceGateResult.Error -> {
+                            _uiState.update { current ->
+                                current.copy(
+                                    faceGate = current.faceGate.copy(
+                                        status = FaceGateStatus.FAILED,
+                                        statusMessage = null,
+                                        errorMessage = faceResult.message
+                                    )
+                                )
+                            }
+                        }
+                    }
+                }
+            )
+            return
+        }
+
+        if (faceGateState.fallbackAuthorized) {
+            executeCryptoSigningAndSubmit(activity, payload, onCompleted)
+            return
+        }
+
+        _uiState.update { current ->
+            current.copy(
+                faceGate = faceGateState.copy(
+                    status = FaceGateStatus.UNAVAILABLE,
+                    statusMessage = "Face / Weak Biometric unavailable. Confirm fallback below to proceed with existing M2 authentication."
+                )
+            )
+        }
+    }
+
+    fun continueWithExistingAuthFallback(
+        activity: FragmentActivity,
+        onCompleted: (Boolean) -> Unit
+    ) {
+        val currentFaceGate = evaluateFaceGateState(preserveProgress = true)
+        if (currentFaceGate.isWeakBiometricAvailable) {
+            // Security guard: never allow fallback bypass when BIOMETRIC_WEAK gate is active
+            approveAndExecuteAuth(activity, onCompleted)
+            return
+        }
+        _uiState.update { current ->
+            current.copy(
+                faceGate = currentFaceGate.copy(
+                    fallbackAuthorized = true,
+                    statusMessage = "Proceeding with existing M2 Keystore CryptoObject authentication.",
+                    errorMessage = null
+                )
+            )
+        }
+        approveAndExecuteAuth(activity, onCompleted)
+    }
+
+    private fun executeCryptoSigningAndSubmit(
+        activity: FragmentActivity,
+        payload: QrAuthPayload,
+        onCompleted: (Boolean) -> Unit
+    ) {
         val canonicalPayload = payload.buildCanonicalPayload()
         val challengeBytes = payload.getCanonicalBytes()
 
@@ -438,6 +758,7 @@ class AuthenticatorViewModel @JvmOverloads constructor(
         }
         val promptSubtitle = "Approve for ${payload.origin}"
 
+        Log.i(BiometricFaceGateManager.TAG, "KEYSTORE_SIGNING_STARTED sessionType=${payload.type.name}")
         authenticator.authenticateAndSign(
             activity = activity,
             challenge = challengeBytes,
@@ -447,6 +768,7 @@ class AuthenticatorViewModel @JvmOverloads constructor(
                 when (val outcome = SigningResultPolicy.classify(result)) {
                     is SigningOutcome.Verified -> {
                         val success = outcome.result
+                        Log.i(BiometricFaceGateManager.TAG, "KEYSTORE_SIGNING_SUCCEEDED authMethod=${success.authMethodLabel}")
                         _uiState.update { current ->
                             current.copy(
                                 activeSession = current.activeSession.copy(
@@ -484,6 +806,12 @@ class AuthenticatorViewModel @JvmOverloads constructor(
                                         )
                                         when (apiResult) {
                                             is ApiResult.Success -> {
+                                                Log.i(BiometricFaceGateManager.TAG, "BACKEND_VERIFICATION_SUCCEEDED flow=AUTHENTICATION")
+                                                appendActivity(
+                                                    "Sign-In Approved",
+                                                    "ECDSA P-256 verified by backend (${success.authMethodLabel})",
+                                                    true
+                                                )
                                                 _uiState.update { current ->
                                                     current.copy(
                                                         activeSession = current.activeSession.copy(
@@ -549,6 +877,12 @@ class AuthenticatorViewModel @JvmOverloads constructor(
                                         )
                                         when (apiResult) {
                                             is ApiResult.Success -> {
+                                                Log.i(BiometricFaceGateManager.TAG, "BACKEND_VERIFICATION_SUCCEEDED flow=ENROLLMENT")
+                                                appendActivity(
+                                                    "Device Enrolled",
+                                                    "Hardware public key registered (${success.authMethodLabel})",
+                                                    true
+                                                )
                                                 registrationManager.setRegistrationStatus(DeviceRegistrationStatus.ACTIVE)
                                                 registrationManager.setRegisteredFingerprint(exportedKey.sha256Fingerprint)
                                                 _uiState.update { current ->
@@ -653,8 +987,10 @@ class AuthenticatorViewModel @JvmOverloads constructor(
     }
 
     fun cancelActiveSession() {
+        val resetFaceGate = evaluateFaceGateState(preserveProgress = false)
         _uiState.update { current ->
             current.copy(
+                faceGate = resetFaceGate,
                 activeSession = ActiveAuthSessionState(step = AuthFlowStep.IDLE)
             )
         }
@@ -756,6 +1092,22 @@ class AuthenticatorViewModel @JvmOverloads constructor(
         )
         refreshAll()
         return result
+    }
+
+    private fun appendActivity(title: String, detail: String, isPositive: Boolean) {
+        val entry = SecurityActivityEntry(
+            timestampLabel = currentTimeLabel(),
+            title = title,
+            detail = detail,
+            isPositive = isPositive
+        )
+        _uiState.update { current ->
+            current.copy(activityLog = (listOf(entry) + current.activityLog).take(6))
+        }
+    }
+
+    private fun currentTimeLabel(): String {
+        return SimpleDateFormat("HH:mm:ss", Locale.US).format(Date())
     }
 
     private fun deviceModel(): String {
