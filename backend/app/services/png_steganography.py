@@ -386,3 +386,226 @@ def verify_png_watermark(
             frame.version if frame else None,
             None,
         )
+
+
+@dataclass(frozen=True)
+class PngCapacityInfo:
+    width: int
+    height: int
+    mode: str
+    channels: int
+    total_pixels: int
+    total_capacity_bytes: int
+    header_overhead_bytes: int
+    max_payload_bytes: int
+    source_sha256: str
+
+
+@dataclass(frozen=True)
+class WatermarkInspectionResult:
+    status: str
+    watermark_detected: bool
+    signature_valid: bool
+    framing_valid: bool
+    checksum_valid: bool
+    inspected_image_sha256: str
+    format_name: str | None = None
+    version: int | None = None
+    watermark_id: uuid.UUID | None = None
+    source_asset_id: uuid.UUID | None = None
+    derivative_asset_id: uuid.UUID | None = None
+    signing_key_id: str | None = None
+    signature_algorithm: str | None = None
+    payload: bytes | None = None
+    warnings: tuple[str, ...] = ()
+
+
+def calculate_png_capacity(png_bytes: bytes, *, settings) -> PngCapacityInfo:
+    """Validate PNG carrier and compute LSB embedding capacity without modifying pixels."""
+    _, info = _decode_png(
+        png_bytes,
+        max_image_bytes=min(settings.stego_max_image_bytes, MAX_IMAGE_BYTES),
+        max_pixels=min(settings.stego_max_image_pixels, MAX_IMAGE_PIXELS),
+        max_dimension=min(settings.stego_max_image_dimension, MAX_IMAGE_DIMENSION),
+    )
+    total_pixels = info.width * info.height
+    total_capacity = (total_pixels * 3) // 8
+    max_configured = min(settings.stego_max_payload_bytes, MAX_PAYLOAD_BYTES)
+    usable_payload = max(0, min(total_capacity - FIXED_HEADER_BYTES, max_configured))
+    return PngCapacityInfo(
+        width=info.width,
+        height=info.height,
+        mode=info.mode,
+        channels=info.channels,
+        total_pixels=total_pixels,
+        total_capacity_bytes=total_capacity,
+        header_overhead_bytes=FIXED_HEADER_BYTES,
+        max_payload_bytes=usable_payload,
+        source_sha256=hashlib.sha256(png_bytes).hexdigest(),
+    )
+
+
+def inspect_png_bytes(png_bytes: bytes, *, settings) -> WatermarkInspectionResult:
+    """
+    Read-only inspection of any PNG (external upload or decrypted asset).
+    Distinguishes VALID, INVALID_SIGNATURE, CORRUPTED, NO_WATERMARK,
+    UNKNOWN_SIGNER, and UNSUPPORTED_VERSION without leaking untrusted payloads.
+    """
+    image, info = _decode_png(
+        png_bytes,
+        max_image_bytes=min(settings.stego_max_image_bytes, MAX_IMAGE_BYTES),
+        max_pixels=min(settings.stego_max_image_pixels, MAX_IMAGE_PIXELS),
+        max_dimension=min(settings.stego_max_image_dimension, MAX_IMAGE_DIMENSION),
+    )
+    inspected_sha256 = hashlib.sha256(png_bytes).hexdigest()
+    pixel_bytes = image.tobytes()
+    capacity = (info.width * info.height * 3) // 8
+
+    if capacity < len(FRAME_MAGIC):
+        return WatermarkInspectionResult(
+            status="NO_WATERMARK",
+            watermark_detected=False,
+            signature_valid=False,
+            framing_valid=False,
+            checksum_valid=False,
+            inspected_image_sha256=inspected_sha256,
+            warnings=("Image dimensions are too small to contain an IPGuard watermark.",),
+        )
+
+    magic = _read_lsb_bytes(pixel_bytes, len(FRAME_MAGIC), info.channels)
+    if magic != FRAME_MAGIC:
+        return WatermarkInspectionResult(
+            status="NO_WATERMARK",
+            watermark_detected=False,
+            signature_valid=False,
+            framing_valid=False,
+            checksum_valid=False,
+            inspected_image_sha256=inspected_sha256,
+            warnings=("No IPGuard LSB watermark marker detected in RGB pixel channels.",),
+        )
+
+    if capacity < FIXED_HEADER_BYTES:
+        return WatermarkInspectionResult(
+            status="CORRUPTED",
+            watermark_detected=True,
+            signature_valid=False,
+            framing_valid=False,
+            checksum_valid=False,
+            inspected_image_sha256=inspected_sha256,
+            warnings=("IPGuard watermark marker detected, but image header is truncated.",),
+        )
+
+    fixed = _read_lsb_bytes(pixel_bytes, FIXED_HEADER_BYTES, info.channels)
+    version, flags = fixed[4], fixed[5]
+    if version != FRAME_VERSION:
+        return WatermarkInspectionResult(
+            status="UNSUPPORTED_VERSION",
+            watermark_detected=True,
+            signature_valid=False,
+            framing_valid=False,
+            checksum_valid=False,
+            inspected_image_sha256=inspected_sha256,
+            version=version,
+            warnings=(f"Watermark frame version {version} is not supported.",),
+        )
+    if flags != FRAME_FLAGS:
+        return WatermarkInspectionResult(
+            status="CORRUPTED",
+            watermark_detected=True,
+            signature_valid=False,
+            framing_valid=False,
+            checksum_valid=False,
+            inspected_image_sha256=inspected_sha256,
+            version=version,
+            warnings=(f"Watermark frame flags ({flags}) are invalid or corrupted.",),
+        )
+
+    watermark_id = uuid.UUID(bytes=fixed[6:22])
+    source_asset_id = uuid.UUID(bytes=fixed[22:38])
+    derivative_asset_id = uuid.UUID(bytes=fixed[38:54])
+    payload_length = struct.unpack(">I", fixed[54:58])[0]
+    payload_digest = fixed[58:90]
+    signing_key_id = fixed[90:106].hex()
+
+    max_payload = min(settings.stego_max_payload_bytes, MAX_PAYLOAD_BYTES)
+    frame_length = FIXED_HEADER_BYTES + payload_length
+    if payload_length > max_payload or frame_length > capacity:
+        return WatermarkInspectionResult(
+            status="CORRUPTED",
+            watermark_detected=True,
+            signature_valid=False,
+            framing_valid=False,
+            checksum_valid=False,
+            inspected_image_sha256=inspected_sha256,
+            version=version,
+            warnings=("Declared payload length exceeds image capacity or limit (corrupted or truncated frame).",),
+        )
+
+    complete_frame = _read_lsb_bytes(pixel_bytes, frame_length, info.channels)
+    prefix = complete_frame[:PREFIX_HEADER_BYTES]
+    signature = complete_frame[PREFIX_HEADER_BYTES:FIXED_HEADER_BYTES]
+    payload = complete_frame[FIXED_HEADER_BYTES:]
+
+    checksum_valid = hmac.compare_digest(hashlib.sha256(payload).digest(), payload_digest)
+    if not checksum_valid:
+        return WatermarkInspectionResult(
+            status="CORRUPTED",
+            watermark_detected=True,
+            signature_valid=False,
+            framing_valid=True,
+            checksum_valid=False,
+            inspected_image_sha256=inspected_sha256,
+            version=version,
+            signing_key_id=signing_key_id,
+            warnings=("Payload SHA-256 checksum mismatch; embedded pixels were altered or corrupted.",),
+        )
+
+    public_keys = load_public_keys(settings.stego_public_keys_json)
+    public_key = public_keys.get(signing_key_id)
+    if public_key is None:
+        return WatermarkInspectionResult(
+            status="UNKNOWN_SIGNER",
+            watermark_detected=True,
+            signature_valid=False,
+            framing_valid=True,
+            checksum_valid=True,
+            inspected_image_sha256=inspected_sha256,
+            version=version,
+            signing_key_id=signing_key_id,
+            signature_algorithm="Ed25519",
+            warnings=(f"Signing key ID '{signing_key_id}' is not recognized by this IPGuard instance.",),
+        )
+
+    try:
+        public_key.verify(signature, STEGO_DOMAIN + prefix + payload)
+    except InvalidSignature:
+        return WatermarkInspectionResult(
+            status="INVALID_SIGNATURE",
+            watermark_detected=True,
+            signature_valid=False,
+            framing_valid=True,
+            checksum_valid=True,
+            inspected_image_sha256=inspected_sha256,
+            version=version,
+            signing_key_id=signing_key_id,
+            signature_algorithm="Ed25519",
+            warnings=("Ed25519 digital signature verification failed. Watermark may have been forged or tampered with.",),
+        )
+
+    return WatermarkInspectionResult(
+        status="VALID",
+        watermark_detected=True,
+        signature_valid=True,
+        framing_valid=True,
+        checksum_valid=True,
+        inspected_image_sha256=inspected_sha256,
+        format_name="IPGUARD_WATERMARK",
+        version=version,
+        watermark_id=watermark_id,
+        source_asset_id=source_asset_id,
+        derivative_asset_id=derivative_asset_id,
+        signing_key_id=signing_key_id,
+        signature_algorithm="Ed25519",
+        payload=payload,
+        warnings=(),
+    )

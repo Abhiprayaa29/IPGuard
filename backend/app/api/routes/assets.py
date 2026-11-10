@@ -23,8 +23,15 @@ from app.schemas.asset import (
     WatermarkExtractResponse,
     WatermarkVerifyResponse,
 )
+from app.schemas.steganography import (
+    AssetInspectRequest,
+    StegoEncodeRequest,
+    StegoEncodeResponse,
+    WatermarkInspectResponse,
+)
 from app.schemas.common import ErrorResponse
 from app.services import assets as assets_service
+from app.services import stego_lab
 from app.services import steganography as stego_service
 from app.core.config import get_settings
 from app.core.errors import AppError
@@ -260,6 +267,56 @@ def extract_png_watermark(
         format_version=result.format_version,
         payload_b64=base64.b64encode(result.payload).decode("ascii"),
     )
+
+
+@router.post(
+    "/{asset_id}/watermark",
+    response_model=StegoEncodeResponse,
+    status_code=status.HTTP_201_CREATED,
+    summary="Encode a signed canonical IPGuard watermark into an owned PNG asset",
+    responses=DOWNLOAD_ERRORS | {415: {"model": ErrorResponse, "description": "Source asset must be a PNG."}},
+)
+def watermark_asset(
+    asset_id: uuid.UUID,
+    payload: StegoEncodeRequest,
+    db: Session = Depends(get_db),
+    device: Device = Depends(get_current_authenticated_device),
+) -> StegoEncodeResponse:
+    derivative, watermark_id, embedded_payload = stego_lab.encode_canonical_asset_watermark(
+        db,
+        source_asset_id=asset_id,
+        device_id=device.device_id,
+        copyright_notice=payload.copyright,
+        license_info=payload.license,
+        note=payload.note,
+    )
+    return StegoEncodeResponse(
+        derivative=AssetResponse.model_validate(derivative),
+        watermark_id=watermark_id,
+        format_version=derivative.stego_format_version or 1,
+        embedded_payload=embedded_payload,
+    )
+
+
+@router.post(
+    "/{asset_id}/watermark/inspect",
+    response_model=WatermarkInspectResponse,
+    summary="Inspect an existing Asset Vault PNG for an IPGuard watermark (read-only)",
+    responses=DOWNLOAD_ERRORS | {415: {"model": ErrorResponse, "description": "Asset must be a PNG."}},
+)
+def inspect_asset_watermark(
+    asset_id: uuid.UUID,
+    body: AssetInspectRequest | None = None,
+    db: Session = Depends(get_db),
+    device: Device = Depends(get_current_authenticated_device),
+) -> WatermarkInspectResponse:
+    _, result = stego_lab.inspect_vault_asset_png(
+        db,
+        asset_id=asset_id,
+        device_id=device.device_id,
+        expected_source_sha256=body.expected_source_sha256 if body else None,
+    )
+    return WatermarkInspectResponse(**result)
 
 
 @router.patch(
