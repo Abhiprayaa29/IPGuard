@@ -3,10 +3,10 @@
 Native Android hardware authenticator application for IPGuard zero-trust account and digital asset security.
 
 **Application ID:** `com.ipguard.authenticator`  
-**Current Milestone:** M2 Hardening & Lifecycle Refinement (One-Time Device Enrollment)  
-**App Version:** `0.4.0` (`versionCode 4`)  
+**Current Milestone:** M2 Native Face Authentication (`BiometricPrompt`) & Authenticator UI Redesign  
+**App Version:** `0.5.0` (`versionCode 5`)  
 **Target API:** Compile SDK 36, Target SDK 36, Minimum SDK 28  
-**Verification Status:** 59 Unit Tests Passed (100% green); Physically verified on Samsung Galaxy A54 5G (`SM-A546E`, Android 16)
+**Verification Status:** 68 Unit Tests Passed (100% green across 11 suites); Native Face Gate + Keystore ECDSA signing verified on Samsung Galaxy A54 5G (`SM-A546E`, Android 16)
 
 ---
 
@@ -92,21 +92,45 @@ This exports:
 
 ---
 
-## 5. Build, Test, and Installation
+### 5. Build, Test, and Installation
 
 ### A. Run Automated Unit Tests
 ```powershell
 Set-Location mobile-authenticator
 .\gradlew.bat testDebugUnitTest --no-daemon
 ```
-*Current test result: 59 passed across 10 test suites in 0.45s, 0 failures, 0 errors.*
+*Current test result: 68 passed across 11 test suites (including 9 tests in `BiometricFaceGateManagerTest`), 0 failures, 0 errors.*
 
-### B. Assemble Debug APK
+### B. Assemble Debug APK (Internal Testing)
 ```powershell
 .\gradlew.bat :app:assembleDebug --no-daemon
 ```
 Outputs APK to:
 `app\build\outputs\apk\debug\app-debug.apk`
+
+### C. Signed Release APK & GitHub Releases Distribution
+
+Signed release builds are generated exclusively via environment signing credentials or GitHub Actions (`../.github/workflows/android-release.yml`) — never with the debug keystore and never committing keystores or secrets to Git.
+
+#### Required GitHub Repository Secrets
+Configure these secrets in **Settings -> Secrets and variables -> Actions** before running `Android Release APK Build & GitHub Release`:
+1. `ANDROID_KEYSTORE_BASE64`: Base64-encoded `.jks` / `.p12` release keystore (`base64 -w0 release.jks`).
+2. `ANDROID_KEYSTORE_PASSWORD`: Password for the release keystore.
+3. `ANDROID_KEY_ALIAS`: Key alias inside the keystore.
+4. `ANDROID_KEY_PASSWORD`: Password for the release key alias.
+
+#### Triggering a Release
+Once secrets are configured:
+- Run **Actions -> Android Release APK Build & GitHub Release -> Run workflow** (or push a release tag matching `v*-android*`, e.g. `v0.2.0-android-beta.1`).
+- The workflow validates signing secrets, executes `testDebugUnitTest`, builds the signed release APK (`assembleRelease`), verifies signatures with `apksigner`, generates `SHA256SUMS.txt`, and publishes a GitHub Pre-release with `IPGuard-Authenticator-v0.2.0-beta.1.apk`.
+- **Private Repository Access:** Because `Abhiprayaa29/IPGuard` is a **private** repository, users downloading APK assets from GitHub Releases must be signed in with repository read access. *(Note: No pre-release download URL is linked until signing secrets are configured in GitHub and the signed release workflow is executed.)*
+
+#### Installation Instructions (Android)
+1. Download the signed release APK (e.g. `IPGuard-Authenticator-v0.2.0-beta.1.apk`) and `SHA256SUMS.txt` from the GitHub Releases page once published (requires repository access).
+2. Verify the SHA-256 checksum matches `SHA256SUMS.txt`.
+3. Open the downloaded `.apk` file on your Android device (Android 9+ / API 28+).
+4. Allow installation from the selected source if Android prompts for permission.
+5. Open **IPGuard Authenticator** and follow **One-Time Device Enrollment** with Native BiometricPrompt + Android Keystore.
 
 ### C. Physical Device Installation & ADB Reverse
 Connect your Android phone via USB with USB Debugging enabled:

@@ -17,6 +17,7 @@ import com.ipguard.authenticator.ui.screens.request.AuthenticationRequestScreen
 import com.ipguard.authenticator.ui.screens.result.ResultScreen
 import com.ipguard.authenticator.ui.screens.scanner.QrScannerScreen
 import com.ipguard.authenticator.ui.screens.settings.SecuritySettingsScreen
+import com.ipguard.authenticator.ui.screens.vault.AssetVaultScreen
 import com.ipguard.authenticator.ui.screens.welcome.WelcomeScreen
 import com.ipguard.authenticator.ui.state.AuthenticatorUiState
 import com.ipguard.authenticator.ui.state.PreviewResult
@@ -31,10 +32,12 @@ fun AppNavHost(
     onDeleteKey: () -> Unit = {},
     onRefreshKey: () -> Unit = {},
     onApproveSign: (FragmentActivity, (Boolean) -> Unit) -> Unit = { _, onDone -> onDone(true) },
+    onContinueExistingAuth: (FragmentActivity, (Boolean) -> Unit) -> Unit = { _, onDone -> onDone(true) },
     onApprovalError: () -> Unit = {},
     onTestSign: (FragmentActivity) -> Unit = {},
     onQrScanned: (String) -> Unit = {},
-    onCancelActiveSession: () -> Unit = {}
+    onCancelActiveSession: () -> Unit = {},
+    onSyncBackend: () -> Unit = {}
 ) {
     val goHome: () -> Unit = {
         navController.popBackStack(
@@ -78,8 +81,15 @@ fun AppNavHost(
                     navController.navigate(AppDestination.QrScanner.route)
                 },
                 onReviewRequest = goToRequest,
+                onOpenAssetVault = {
+                    navController.navigate(AppDestination.AssetVault.route) {
+                        popUpTo(AppDestination.Welcome.route) { inclusive = false }
+                        launchSingleTop = true
+                    }
+                },
                 onOpenDeviceInformation = goToDeviceInformation,
-                onOpenSecuritySettings = goToSecuritySettings
+                onOpenSecuritySettings = goToSecuritySettings,
+                onRefreshSync = onSyncBackend
             )
         }
 
@@ -91,7 +101,7 @@ fun AppNavHost(
                 DeviceRegistrationScreen(
                     onBack = { navController.navigateUp() },
                     onContinue = {
-                        navController.navigate(AppDestination.FaceGate.route)
+                        navController.navigate(AppDestination.QrScanner.route)
                     }
                 )
             }
@@ -146,6 +156,7 @@ fun AppNavHost(
                 activeSession = uiState.activeSession,
                 authPolicy = uiState.authPolicy,
                 signingDiagnostic = uiState.signingDiagnostic,
+                faceGate = uiState.faceGate,
                 onBack = {
                     onCancelActiveSession()
                     navController.navigateUp()
@@ -155,6 +166,23 @@ fun AppNavHost(
                         onApprovalError()
                     } else {
                         onApproveSign(activity) { success ->
+                            if (success) {
+                                navController.navigate(
+                                    AppDestination.Result.createRoute(PreviewResult.APPROVED)
+                                )
+                            } else {
+                                navController.navigate(
+                                    AppDestination.Result.createRoute(PreviewResult.REJECTED)
+                                )
+                            }
+                        }
+                    }
+                },
+                onContinueFallback = {
+                    if (activity == null) {
+                        onApprovalError()
+                    } else {
+                        onContinueExistingAuth(activity) { success ->
                             if (success) {
                                 navController.navigate(
                                     AppDestination.Result.createRoute(PreviewResult.APPROVED)
@@ -215,6 +243,7 @@ fun AppNavHost(
                 onRegenerateKey = onRegenerateKey,
                 onDeleteKey = onDeleteKey,
                 onRefreshKey = onRefreshKey,
+                onSyncBackend = onSyncBackend,
                 onTestSign = {
                     if (activity != null) {
                         onTestSign(activity)
@@ -229,6 +258,22 @@ fun AppNavHost(
                 onBack = { navController.navigateUp() },
                 onDeviceInformation = goToDeviceInformation,
                 onHome = goHome
+            )
+        }
+
+        composable(AppDestination.AssetVault.route) {
+            AssetVaultScreen(
+                uiState = uiState,
+                onBack = { navController.navigateUp() },
+                onUnlockWithQr = {
+                    if (uiState.isRegistered) {
+                        navController.navigate(AppDestination.QrScanner.route)
+                    } else {
+                        navController.navigate(AppDestination.Registration.route)
+                    }
+                },
+                onOpenDeviceSecurity = goToDeviceInformation,
+                onRefreshSync = onSyncBackend
             )
         }
     }

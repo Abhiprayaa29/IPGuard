@@ -9,6 +9,8 @@ import androidx.compose.ui.unit.dp
 import com.ipguard.authenticator.R
 import com.ipguard.authenticator.security.qr.QrSessionType
 import com.ipguard.authenticator.ui.components.AppPill
+import com.ipguard.authenticator.ui.components.AuthPipelineStep
+import com.ipguard.authenticator.ui.components.AuthPipelineStepper
 import com.ipguard.authenticator.ui.components.AuthenticatorScreen
 import com.ipguard.authenticator.ui.components.InformationCard
 import com.ipguard.authenticator.ui.components.KeyValueRow
@@ -17,8 +19,11 @@ import com.ipguard.authenticator.ui.components.NoticeTone
 import com.ipguard.authenticator.ui.components.PillTone
 import com.ipguard.authenticator.ui.components.ScreenActions
 import com.ipguard.authenticator.ui.components.SectionTitle
+import com.ipguard.authenticator.ui.components.StepStatus
 import com.ipguard.authenticator.ui.state.ActiveAuthSessionState
 import com.ipguard.authenticator.ui.state.PreviewSignInRequest
+import com.ipguard.authenticator.ui.theme.IPGuardGoldBright
+import com.ipguard.authenticator.ui.theme.IPGuardVerified
 
 @Composable
 fun AuthenticationRequestScreen(
@@ -33,43 +38,53 @@ fun AuthenticationRequestScreen(
     val isEnrollment = activeSession.payload?.type == QrSessionType.ENROLLMENT
     val hasLiveSession = activeSession.payload != null
 
-    val eyebrow = if (isEnrollment) {
-        "DEVICE ENROLLMENT"
-    } else {
-        stringResource(R.string.request_eyebrow)
-    }
-
-    val title = if (isEnrollment) {
-        "Enroll this device?"
-    } else {
-        stringResource(R.string.request_title)
-    }
-
+    val eyebrow = if (isEnrollment) "DEVICE ENROLLMENT" else "SIGN-IN REQUEST"
+    val title = if (isEnrollment) "Enroll this device?" else "Verify sign-in request"
     val subtitle = if (isEnrollment) {
-        "A web session is requesting to register this device as your trusted authenticator."
+        "Confirm the browser origin before initializing hardware biometric authorization and ECDSA P-256 registration."
     } else {
-        stringResource(R.string.request_subtitle)
+        "Confirm that you initiated this Web Console request on this device before continuing to Face Authentication."
     }
 
     val badgeText = when {
-        isEnrollment -> "DEVICE REGISTRATION"
-        hasLiveSession -> "LIVE QR SESSION"
-        else -> stringResource(R.string.request_sample_badge)
+        isEnrollment -> "LIVE ENROLLMENT CHALLENGE"
+        hasLiveSession -> "LIVE QR CHALLENGE"
+        else -> "PREVIEW MODE"
     }
+    val badgeTone = if (hasLiveSession) PillTone.VERIFIED else PillTone.GOLD
 
-    val badgeTone = if (hasLiveSession) PillTone.TEAL else PillTone.GOLD
-
-    val purposeValue = if (isEnrollment) {
-        "Register Device Key & Trust Relationship"
-    } else {
-        stringResource(R.string.request_purpose_value)
-    }
-
-    val primaryActionLabel = if (isEnrollment) {
-        "Review enrollment"
-    } else {
-        stringResource(R.string.request_primary_action)
-    }
+    val steps = listOf(
+        AuthPipelineStep(
+            stepCode = "STEP 01",
+            title = "QR Challenge Detected",
+            detail = if (hasLiveSession) "Origin and single-use challenge verified" else "Sample preview challenge loaded",
+            status = if (hasLiveSession) StepStatus.COMPLETED else StepStatus.ACTIVE
+        ),
+        AuthPipelineStep(
+            stepCode = "STEP 02",
+            title = "Face Authentication",
+            detail = "Waiting for Device Biometric Authentication",
+            status = StepStatus.PENDING
+        ),
+        AuthPipelineStep(
+            stepCode = "STEP 03",
+            title = "Keystore Authorization",
+            detail = "BIOMETRIC_STRONG / DEVICE_CREDENTIAL CryptoObject",
+            status = StepStatus.PENDING
+        ),
+        AuthPipelineStep(
+            stepCode = "STEP 04",
+            title = "Cryptographic Signing",
+            detail = "ECDSA P-256 non-exportable hardware signature",
+            status = StepStatus.PENDING
+        ),
+        AuthPipelineStep(
+            stepCode = "STEP 05",
+            title = "Authentication Verified",
+            detail = if (isEnrollment) "Register device public key with backend" else "Authorize IPGuard browser session",
+            status = StepStatus.PENDING
+        )
+    )
 
     AuthenticatorScreen(
         eyebrow = eyebrow,
@@ -78,18 +93,19 @@ fun AuthenticationRequestScreen(
         modifier = modifier,
         onBack = onBack
     ) {
-        AppPill(
-            text = badgeText,
-            tone = badgeTone
-        )
-        Spacer(Modifier.height(20.dp))
+        AppPill(text = badgeText, tone = badgeTone)
+        Spacer(Modifier.height(16.dp))
+
+        AuthPipelineStepper(steps = steps)
+        Spacer(Modifier.height(14.dp))
 
         InformationCard {
             SectionTitle(text = stringResource(R.string.request_context_title))
             Spacer(Modifier.height(8.dp))
             KeyValueRow(
                 label = stringResource(R.string.request_service_label),
-                value = request.service
+                value = request.service,
+                valueColor = IPGuardGoldBright
             )
             KeyValueRow(
                 label = stringResource(R.string.request_browser_label),
@@ -97,15 +113,17 @@ fun AuthenticationRequestScreen(
             )
             KeyValueRow(
                 label = stringResource(R.string.request_origin_label),
-                value = request.origin
+                value = request.origin,
+                monospaceValue = true
             )
             KeyValueRow(
                 label = stringResource(R.string.request_purpose_label),
-                value = purposeValue
+                value = if (isEnrollment) "Register Device Key & Trust Relationship" else stringResource(R.string.request_purpose_value)
             )
             KeyValueRow(
                 label = stringResource(R.string.request_received_label),
                 value = if (hasLiveSession) "Just now (Live QR)" else stringResource(R.string.request_received_value),
+                valueColor = if (hasLiveSession) IPGuardVerified else IPGuardGoldBright,
                 showDivider = false
             )
         }
@@ -113,9 +131,9 @@ fun AuthenticationRequestScreen(
         Spacer(Modifier.height(14.dp))
         NoticeCard(
             text = if (isEnrollment) {
-                "Approving will register this phone's ECDSA public key with IPGuard. Only this phone will be able to approve sign-ins."
+                "Approving will link this phone's ECDSA P-256 public key to IPGuard. Only this enrolled device can sign future logins."
             } else {
-                stringResource(R.string.request_notice)
+                "Next step invokes Android BiometricPrompt for Face Authentication prior to Keystore signing."
             },
             tone = NoticeTone.INFO
         )
@@ -124,9 +142,9 @@ fun AuthenticationRequestScreen(
             text = stringResource(R.string.request_warning),
             tone = NoticeTone.WARNING
         )
-        Spacer(Modifier.height(24.dp))
+        Spacer(Modifier.height(22.dp))
         ScreenActions(
-            primaryLabel = primaryActionLabel,
+            primaryLabel = if (isEnrollment) "Continue to Face & Signing Gate" else "Continue to Face & Approval",
             onPrimary = onReview,
             secondaryLabel = stringResource(R.string.request_secondary_action),
             onSecondary = onReject,

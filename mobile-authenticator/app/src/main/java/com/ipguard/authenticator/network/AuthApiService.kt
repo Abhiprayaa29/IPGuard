@@ -16,6 +16,7 @@ import java.io.IOException
 import java.util.concurrent.TimeUnit
 
 interface AuthApiService {
+    suspend fun checkHealth(): ApiResult<Boolean> = ApiResult.Success(true)
     suspend fun scanSession(sessionToken: String, deviceId: String?): ApiResult<SessionStatusDto>
     suspend fun verifySession(sessionToken: String, request: VerifySessionRequest): ApiResult<SessionStatusDto>
     suspend fun registerDevice(request: RegisterDeviceRequest): ApiResult<DeviceRegisteredDto>
@@ -28,6 +29,17 @@ class OkHttpAuthApiService(
 ) : AuthApiService {
 
     private val jsonMediaType = "application/json; charset=utf-8".toMediaType()
+
+    override suspend fun checkHealth(): ApiResult<Boolean> = withContext(Dispatchers.IO) {
+        val request = Request.Builder()
+            .url(resolveUrl("/health"))
+            .get()
+            .build()
+
+        executeRequest(request) { json ->
+            json.optString("status", "ok").equals("ok", ignoreCase = true)
+        }
+    }
 
     override suspend fun scanSession(
         sessionToken: String,

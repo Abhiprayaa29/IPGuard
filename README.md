@@ -67,7 +67,7 @@ IPGuard establishes a defense-in-depth security model across three synchronized 
 - **Hardware-Isolated ECDSA P-256:** Cryptographic private keys generated inside Android Keystore (`privateKey.encoded == null`).
 - **Dynamic Web QR Authentication:** Ephemeral session challenges (60s TTL) with Anti-QR Jacking browser secrets (SEC-02).
 - **One-Time Device Enrollment:** Enforces strict hardware binding via PostgreSQL row-level locks (`SELECT FOR UPDATE`), rejecting duplicate registrations.
-- *(Note: Native Face Authentication via Android `BiometricPrompt` is a planned future enhancement).*
+- **Native Face Authentication Gate:** Invokes AndroidX `BiometricPrompt` (`BIOMETRIC_WEAK`) as a preliminary biometric gate before Android Keystore `CryptoObject` (`BIOMETRIC_STRONG` / `DEVICE_CREDENTIAL`) ECDSA P-256 signing (physically verified on Samsung Galaxy A54 5G, Android 16).
 
 ### Milestone 3 — Authenticated Digital Asset Vault (VERIFIED)
 - **True XChaCha20-Poly1305 AEAD:** Symmetric encryption using 192-bit (24-byte) CSPRNG nonces and 128-bit Poly1305 MAC tags.
@@ -242,13 +242,19 @@ npm run dev
 ```
 Web Console will be accessible at: `http://127.0.0.1:5173`
 
-### 4. Android Authenticator Setup
-1. Open the `mobile-authenticator/` directory in Android Studio.
-2. Build and deploy the debug APK onto your physical Android device.
-3. Use ADB reverse proxy if testing over USB:
+### 4. Android Authenticator Setup & APK Distribution
+1. See [mobile-authenticator/README.md](mobile-authenticator/README.md) for local debug builds (`.\gradlew.bat assembleDebug --no-daemon`) and Android SDK setup.
+2. Signed production/beta APKs are produced through [`.github/workflows/android-release.yml`](.github/workflows/android-release.yml) once repository signing secrets (`ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS`, `ANDROID_KEY_PASSWORD`) are configured.
+3. Use ADB reverse proxy if testing locally over USB:
    ```bash
    adb reverse tcp:8000 tcp:8000
+   adb reverse tcp:5173 tcp:5173
    ```
+
+#### Installation & Security Highlights
+- **Private Repository Access:** `Abhiprayaa29/IPGuard` is a private repository; authorized GitHub access is required to download release assets once published.
+- **Installation Steps (Signed APK):** Download the signed release APK + `SHA256SUMS.txt` from GitHub Releases -> verify SHA-256 -> open APK on Android (API 28+) -> allow installation from the chosen source -> complete One-Time Device Enrollment.
+- **Security Stack:** Android Keystore (`ECDSA P-256`), Native Android `BiometricPrompt`, and QR Challenge-Response Authentication.
 
 ---
 
@@ -301,7 +307,7 @@ python ../scripts/m4_browser_acceptance_test.py
 ### Scope & Implementation Status
 * **Milestones M0–M4:** **Implemented, Verified, and Fully Documented** in this repository.
 * **Milestone 5 (Blockchain Audit Logging):** **Planned Future Roadmap, NOT Implemented.**
-* **Native Face Authentication (`BiometricPrompt`):** **Planned Future Proposal, NOT Implemented.**
+* **Native Face Authentication Gate (`BiometricPrompt` `BIOMETRIC_WEAK`):** **Implemented & Physically Verified** on Samsung Galaxy A54 5G (`SM-A546E`) as a pre-signing gate prior to Android Keystore `CryptoObject` (`BIOMETRIC_STRONG` / `DEVICE_CREDENTIAL`) ECDSA P-256 signing. Public Android API `BIOMETRIC_WEAK` selects strength tier rather than forcing face-only modality on all OEM hardware.
 * **Production Status:** **Verified Engineering Evaluation / Pre-Release Build (`v1.0.0-m0-m4`).** This project is prepared for reproducible evaluation and testing in verified environments; no live production cloud deployment is claimed.
 
 ### Technical & Cryptographic Limitations
@@ -321,7 +327,6 @@ python ../scripts/m4_browser_acceptance_test.py
 * **Public Verifier Portal:** Web tool allowing third parties to verify asset hashes against blockchain checkpoints without requiring server access.
 
 ### Future Android Client Enhancements (PLANNED)
-* **Native BiometricPrompt Binding:** Class 3 biometrics gating Keystore key usage directly before signing.
 * **Remote Attestation:** Keymaster / Keymint certificate chain verification to validate hardware TEE integrity against Google servers.
 
 ---

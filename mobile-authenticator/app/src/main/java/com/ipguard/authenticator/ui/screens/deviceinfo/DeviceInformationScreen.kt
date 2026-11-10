@@ -14,20 +14,28 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.ipguard.authenticator.R
+import com.ipguard.authenticator.ui.components.AppPill
 import com.ipguard.authenticator.ui.components.AuthenticatorScreen
 import com.ipguard.authenticator.ui.components.InformationCard
 import com.ipguard.authenticator.ui.components.KeyValueRow
 import com.ipguard.authenticator.ui.components.NoticeCard
 import com.ipguard.authenticator.ui.components.NoticeTone
+import com.ipguard.authenticator.ui.components.PillTone
 import com.ipguard.authenticator.ui.components.ScreenActions
 import com.ipguard.authenticator.ui.components.SectionTitle
 import com.ipguard.authenticator.ui.state.AuthenticatorUiState
-import com.ipguard.authenticator.ui.theme.IPGuardGold
-import com.ipguard.authenticator.ui.theme.IPGuardTeal
+import com.ipguard.authenticator.ui.state.BackendConnectionStatus
+import com.ipguard.authenticator.ui.theme.IPGuardDanger
+import com.ipguard.authenticator.ui.theme.IPGuardGoldBright
+import com.ipguard.authenticator.ui.theme.IPGuardPlatinum
+import com.ipguard.authenticator.ui.theme.IPGuardSurface
+import com.ipguard.authenticator.ui.theme.IPGuardVerified
 
-private enum class PendingKeyAction {
-    REGENERATE,
-    DELETE
+private enum class PendingDeviceAction {
+    REGENERATE_KEY,
+    DELETE_KEY,
+    REVOKE_ACCESS,
+    UNREGISTER_DEVICE
 }
 
 @Composable
@@ -41,97 +49,132 @@ fun DeviceInformationScreen(
     onRegenerateKey: () -> Unit = {},
     onDeleteKey: () -> Unit = {},
     onRefreshKey: () -> Unit = {},
+    onSyncBackend: () -> Unit = {},
     onTestSign: () -> Unit = {}
 ) {
     val keyState = uiState.keyDiagnostic
     val authPolicy = uiState.authPolicy
     val signingDiag = uiState.signingDiagnostic
     val fallbackCurve = stringResource(R.string.device_fallback_curve)
-    var pendingKeyAction by remember { mutableStateOf<PendingKeyAction?>(null) }
+    var pendingAction by remember { mutableStateOf<PendingDeviceAction?>(null) }
+
+    val isActive = uiState.isRegistered && uiState.registrationStatus == "ACTIVE"
+    val isRevoked = uiState.registrationStatus == "REVOKED"
+    val maskedDeviceId = if (uiState.deviceId.length > 14) {
+        "${uiState.deviceId.take(10)}...${uiState.deviceId.takeLast(4)}"
+    } else {
+        uiState.deviceId.ifBlank { "Pending" }
+    }
 
     AuthenticatorScreen(
-        eyebrow = stringResource(R.string.device_eyebrow),
-        title = stringResource(R.string.device_title),
-        subtitle = stringResource(R.string.device_subtitle),
+        eyebrow = "DEVICE SECURITY",
+        title = "Device & key lifecycle",
+        subtitle = "Inspect your registered hardware identity, authorization policy, and server-synced enrollment status.",
         modifier = modifier,
         onBack = onBack
     ) {
+        AppPill(
+            text = when {
+                isRevoked -> "STATUS: REVOKED"
+                isActive -> "STATUS: ACTIVE AUTHENTICATOR"
+                else -> "STATUS: UNREGISTERED"
+            },
+            tone = when {
+                isRevoked -> PillTone.DANGER
+                isActive -> PillTone.VERIFIED
+                else -> PillTone.GOLD
+            }
+        )
+        Spacer(Modifier.height(16.dp))
+
         InformationCard {
-            SectionTitle(text = stringResource(R.string.device_identity_title))
+            SectionTitle(text = "REGISTERED DEVICE")
             Spacer(Modifier.height(8.dp))
+            KeyValueRow(
+                label = "Device status",
+                value = uiState.registrationStatus,
+                valueColor = when {
+                    isRevoked -> IPGuardDanger
+                    isActive -> IPGuardVerified
+                    else -> IPGuardGoldBright
+                },
+                monospaceValue = true
+            )
             KeyValueRow(
                 label = stringResource(R.string.device_model_label),
                 value = uiState.deviceFacts.model
+            )
+            KeyValueRow(
+                label = "Device identifier",
+                value = maskedDeviceId,
+                monospaceValue = true
             )
             KeyValueRow(
                 label = stringResource(R.string.device_android_label),
                 value = uiState.deviceFacts.androidVersion
             )
             KeyValueRow(
-                label = stringResource(R.string.device_app_label),
-                value = uiState.deviceFacts.appVersion
-            )
-            KeyValueRow(
-                label = stringResource(R.string.device_account_label),
-                value = stringResource(R.string.device_not_linked_value),
+                label = "Backend connection",
+                value = uiState.connectionState.statusLabel,
+                valueColor = when (uiState.connectionState.status) {
+                    BackendConnectionStatus.CONNECTED -> IPGuardVerified
+                    BackendConnectionStatus.CHECKING -> IPGuardGoldBright
+                    BackendConnectionStatus.UNAVAILABLE -> IPGuardDanger
+                },
                 showDivider = false
             )
         }
 
         Spacer(Modifier.height(14.dp))
         InformationCard {
-            SectionTitle(text = stringResource(R.string.device_policy_title))
+            SectionTitle(text = "AUTHENTICATION METHOD")
             Spacer(Modifier.height(8.dp))
             KeyValueRow(
                 label = stringResource(R.string.device_primary_auth_label),
                 value = authPolicy.primaryAuthMethod,
-                valueColor = IPGuardTeal
+                valueColor = IPGuardGoldBright
+            )
+            KeyValueRow(
+                label = "Face Gate (Pre-check)",
+                value = uiState.faceGate.availabilityLabel,
+                valueColor = if (uiState.faceGate.isWeakBiometricAvailable) IPGuardVerified else IPGuardGoldBright
             )
             KeyValueRow(
                 label = stringResource(R.string.device_biometric_route_label),
-                value = authPolicy.biometricStatus,
-                valueColor = IPGuardGold
+                value = authPolicy.biometricStatus
             )
             KeyValueRow(
                 label = stringResource(R.string.device_lock_status_label),
                 value = authPolicy.credentialStatus,
-                valueColor = IPGuardTeal
-            )
-            KeyValueRow(
-                label = stringResource(R.string.device_fingerprint_required_label),
-                value = stringResource(R.string.device_fingerprint_required_value),
-                valueColor = IPGuardTeal,
+                valueColor = IPGuardVerified,
                 showDivider = false
             )
         }
 
         Spacer(Modifier.height(14.dp))
         InformationCard {
-            SectionTitle(text = stringResource(R.string.device_security_title))
+            SectionTitle(text = "ANDROID KEYSTORE ECDSA P-256")
             Spacer(Modifier.height(8.dp))
             KeyValueRow(
-                label = stringResource(R.string.device_binding_label),
-                value = stringResource(R.string.device_binding_value)
-            )
-            KeyValueRow(
                 label = stringResource(R.string.device_key_label),
-                value = if (keyState.hasKey) stringResource(R.string.device_key_available_value) else stringResource(R.string.device_key_value),
-                valueColor = if (keyState.hasKey) IPGuardTeal else IPGuardGold
+                value = if (keyState.hasKey) "Created (ECDSA P-256)" else "Not created",
+                valueColor = if (keyState.hasKey) IPGuardVerified else IPGuardGoldBright
             )
             KeyValueRow(
                 label = stringResource(R.string.device_hardware_label),
-                value = if (keyState.hasKey) keyState.securityLevel else stringResource(R.string.device_hardware_value),
-                valueColor = if (keyState.hasKey) IPGuardTeal else IPGuardGold
+                value = if (keyState.hasKey) keyState.securityLevel else "Not checked",
+                valueColor = if (keyState.hasKey) IPGuardVerified else IPGuardGoldBright
             )
             if (keyState.hasKey) {
                 KeyValueRow(
                     label = stringResource(R.string.device_key_curve_label),
-                    value = keyState.curve.ifEmpty { fallbackCurve }
+                    value = keyState.curve.ifEmpty { fallbackCurve },
+                    monospaceValue = true
                 )
                 KeyValueRow(
                     label = stringResource(R.string.device_private_key_label),
                     value = stringResource(R.string.device_private_key_value),
-                    valueColor = IPGuardTeal
+                    valueColor = IPGuardVerified
                 )
                 KeyValueRow(
                     label = stringResource(R.string.device_user_auth_label),
@@ -140,27 +183,41 @@ fun DeviceInformationScreen(
                 if (keyState.fingerprint.isNotEmpty()) {
                     KeyValueRow(
                         label = stringResource(R.string.device_public_key_sha_label),
-                        value = keyState.fingerprint
+                        value = "${keyState.fingerprint.take(20)}...",
+                        monospaceValue = true,
+                        showDivider = false
                     )
                 }
             }
+        }
+
+        Spacer(Modifier.height(14.dp))
+        InformationCard {
+            SectionTitle(text = "DEVICE LIFECYCLE & ACCESS CONTROL")
+            Spacer(Modifier.height(8.dp))
             KeyValueRow(
-                label = stringResource(R.string.device_attestation_label),
-                value = if (keyState.hasKey) {
-                    stringResource(R.string.device_attestation_keyinfo_value)
-                } else {
-                    stringResource(R.string.device_attestation_value)
-                }
+                label = "Enrollment policy",
+                value = "One-Time Device Binding (M2)"
             )
             KeyValueRow(
-                label = stringResource(R.string.device_face_label),
-                value = stringResource(R.string.device_face_value)
-            )
-            KeyValueRow(
-                label = stringResource(R.string.device_app_auth_label),
-                value = stringResource(R.string.device_app_auth_biometric_value),
-                valueColor = IPGuardTeal,
+                label = stringResource(R.string.device_trusted_label),
+                value = stringResource(
+                    R.string.device_trusted_value,
+                    uiState.trustedPhoneCount,
+                    uiState.maximumTrustedPhones
+                ),
                 showDivider = false
+            )
+            Spacer(Modifier.height(12.dp))
+            ScreenActions(
+                primaryLabel = if (uiState.isSyncingBackend) "Syncing Backend Status..." else "Sync Status from Backend",
+                onPrimary = onSyncBackend,
+                primaryEnabled = !uiState.isSyncingBackend,
+                primaryLoading = uiState.isSyncingBackend,
+                secondaryLabel = "Revoke Access",
+                onSecondary = { pendingAction = PendingDeviceAction.REVOKE_ACCESS },
+                tertiaryLabel = "Unregister Device",
+                onTertiary = { pendingAction = PendingDeviceAction.UNREGISTER_DEVICE }
             )
         }
 
@@ -169,41 +226,23 @@ fun DeviceInformationScreen(
             SectionTitle(text = stringResource(R.string.device_signing_test_title))
             Spacer(Modifier.height(8.dp))
             if (signingDiag.statusMessage != null) {
-                NoticeCard(
-                    text = signingDiag.statusMessage,
-                    tone = NoticeTone.INFO
-                )
+                NoticeCard(text = signingDiag.statusMessage, tone = NoticeTone.SUCCESS)
                 Spacer(Modifier.height(8.dp))
             }
             if (signingDiag.errorMessage != null) {
-                NoticeCard(
-                    text = signingDiag.errorMessage,
-                    tone = NoticeTone.WARNING
-                )
+                NoticeCard(text = signingDiag.errorMessage, tone = NoticeTone.WARNING)
                 Spacer(Modifier.height(8.dp))
             }
             if (signingDiag.hasSigned) {
                 KeyValueRow(
                     label = stringResource(R.string.device_auth_method_used_label),
                     value = signingDiag.authMethodLabel,
-                    valueColor = IPGuardTeal
+                    valueColor = IPGuardVerified
                 )
                 KeyValueRow(
                     label = stringResource(R.string.device_locally_verified_label),
-                    value = if (signingDiag.verifiedLocally) {
-                        stringResource(R.string.device_verified_value)
-                    } else {
-                        stringResource(R.string.device_failed_verification_value)
-                    },
-                    valueColor = if (signingDiag.verifiedLocally) IPGuardTeal else IPGuardGold
-                )
-                KeyValueRow(
-                    label = stringResource(R.string.device_signature_label),
-                    value = if (signingDiag.base64Signature.length > 24) {
-                        "${signingDiag.base64Signature.take(12)}...${signingDiag.base64Signature.takeLast(12)}"
-                    } else {
-                        signingDiag.base64Signature
-                    },
+                    value = if (signingDiag.verifiedLocally) "Yes (ECDSA valid)" else "Failed",
+                    valueColor = if (signingDiag.verifiedLocally) IPGuardVerified else IPGuardDanger,
                     showDivider = false
                 )
                 Spacer(Modifier.height(8.dp))
@@ -219,118 +258,116 @@ fun DeviceInformationScreen(
             SectionTitle(text = stringResource(R.string.device_key_operations_title))
             Spacer(Modifier.height(8.dp))
             if (keyState.statusMessage != null) {
-                NoticeCard(
-                    text = keyState.statusMessage,
-                    tone = NoticeTone.INFO
-                )
+                NoticeCard(text = keyState.statusMessage, tone = NoticeTone.INFO)
                 Spacer(Modifier.height(10.dp))
             }
             if (keyState.errorMessage != null) {
-                NoticeCard(
-                    text = keyState.errorMessage,
-                    tone = NoticeTone.WARNING
-                )
+                NoticeCard(text = keyState.errorMessage, tone = NoticeTone.WARNING)
                 Spacer(Modifier.height(10.dp))
             }
             ScreenActions(
-                primaryLabel = if (keyState.hasKey) {
-                    stringResource(R.string.key_action_regenerate)
-                } else {
-                    stringResource(R.string.key_action_generate)
+                primaryLabel = if (keyState.hasKey) stringResource(R.string.key_action_regenerate) else stringResource(R.string.key_action_generate),
+                onPrimary = {
+                    if (keyState.hasKey) {
+                        pendingAction = PendingDeviceAction.REGENERATE_KEY
+                    } else {
+                        onGenerateKey()
+                    }
                 },
-                onPrimary = if (keyState.hasKey) {
-                    { pendingKeyAction = PendingKeyAction.REGENERATE }
-                } else {
-                    onGenerateKey
-                },
-                secondaryLabel = if (keyState.hasKey) {
-                    stringResource(R.string.key_action_delete)
-                } else {
-                    null
-                },
+                primaryEnabled = !uiState.isRegistered,
+                secondaryLabel = if (keyState.hasKey) stringResource(R.string.key_action_delete) else null,
                 onSecondary = if (keyState.hasKey) {
-                    { pendingKeyAction = PendingKeyAction.DELETE }
-                } else {
-                    null
-                },
+                    { pendingAction = PendingDeviceAction.DELETE_KEY }
+                } else null,
+                secondaryEnabled = !uiState.isRegistered,
                 tertiaryLabel = stringResource(R.string.key_action_refresh),
                 onTertiary = onRefreshKey
             )
+            if (uiState.isRegistered) {
+                Spacer(Modifier.height(8.dp))
+                NoticeCard(
+                    text = "M2 policy locks local key rotation/deletion while enrolled. Use Web Console Unregister Device before re-enrolling.",
+                    tone = NoticeTone.INFO
+                )
+            }
         }
 
         Spacer(Modifier.height(14.dp))
-        InformationCard {
-            SectionTitle(text = stringResource(R.string.device_connection_title))
-            Spacer(Modifier.height(8.dp))
-            KeyValueRow(
-                label = stringResource(R.string.device_api_label),
-                value = stringResource(R.string.device_api_value)
-            )
-            KeyValueRow(
-                label = stringResource(R.string.device_enrollment_label),
-                value = stringResource(R.string.device_enrollment_value)
-            )
-            KeyValueRow(
-                label = stringResource(R.string.device_trusted_label),
-                value = stringResource(
-                    R.string.device_trusted_value,
-                    uiState.trustedPhoneCount,
-                    uiState.maximumTrustedPhones
-                ),
-                showDivider = false
-            )
-        }
-
-        Spacer(Modifier.height(14.dp))
-        NoticeCard(
-            text = authPolicy.policyExplanation,
-            tone = NoticeTone.INFO
-        )
-        Spacer(Modifier.height(24.dp))
+        NoticeCard(text = authPolicy.policyExplanation, tone = NoticeTone.INFO)
+        Spacer(Modifier.height(22.dp))
         ScreenActions(
-            primaryLabel = stringResource(R.string.device_primary_action),
+            primaryLabel = "Security, Biometrics & About",
             onPrimary = onOpenSecuritySettings,
-            secondaryLabel = stringResource(R.string.device_secondary_action),
+            secondaryLabel = "Back to Dashboard",
             onSecondary = onHome
         )
     }
 
-    pendingKeyAction?.let { action ->
-        val title = when (action) {
-            PendingKeyAction.REGENERATE -> stringResource(R.string.key_regenerate_confirm_title)
-            PendingKeyAction.DELETE -> stringResource(R.string.key_delete_confirm_title)
-        }
-        val message = when (action) {
-            PendingKeyAction.REGENERATE -> stringResource(R.string.key_regenerate_confirm_message)
-            PendingKeyAction.DELETE -> stringResource(R.string.key_delete_confirm_message)
-        }
-        val confirmLabel = when (action) {
-            PendingKeyAction.REGENERATE -> stringResource(R.string.key_regenerate_confirm_action)
-            PendingKeyAction.DELETE -> stringResource(R.string.key_delete_confirm_action)
+    pendingAction?.let { action ->
+        val (title, message, confirmLabel, onConfirm) = when (action) {
+            PendingDeviceAction.REGENERATE_KEY -> Quad(
+                stringResource(R.string.key_regenerate_confirm_title),
+                stringResource(R.string.key_regenerate_confirm_message),
+                stringResource(R.string.key_regenerate_confirm_action),
+                onRegenerateKey
+            )
+            PendingDeviceAction.DELETE_KEY -> Quad(
+                stringResource(R.string.key_delete_confirm_title),
+                stringResource(R.string.key_delete_confirm_message),
+                stringResource(R.string.key_delete_confirm_action),
+                onDeleteKey
+            )
+            PendingDeviceAction.REVOKE_ACCESS -> Quad(
+                "Revoke Device Access",
+                if (isActive) {
+                    "Under IPGuard M2 authorization policy, revoking an active authenticator must be confirmed from an authenticated Web Console session (Device Management -> Revoke Device). After revoking on the web, sync here to apply immediately."
+                } else {
+                    "This device is currently in ${uiState.registrationStatus} state. Tap Sync Status to refresh server records."
+                },
+                "Sync Status Now",
+                onSyncBackend
+            )
+            PendingDeviceAction.UNREGISTER_DEVICE -> Quad(
+                "Unregister Device",
+                if (uiState.isRegistered) {
+                    "One-Time Enrollment locks this phone until explicitly unregistered through an authorized Web Console session (Device Management -> Unregister Device). This prevents unauthorized key replacement. After unregistering on Web Console, tap Sync Status Now."
+                } else {
+                    "This device is already UNREGISTERED and eligible for fresh enrollment."
+                },
+                "Sync Status Now",
+                onSyncBackend
+            )
         }
 
         AlertDialog(
-            onDismissRequest = { pendingKeyAction = null },
+            onDismissRequest = { pendingAction = null },
+            containerColor = IPGuardSurface,
+            titleContentColor = IPGuardPlatinum,
+            textContentColor = IPGuardPlatinum,
             title = { Text(title) },
             text = { Text(message) },
             confirmButton = {
                 TextButton(
                     onClick = {
-                        pendingKeyAction = null
-                        when (action) {
-                            PendingKeyAction.REGENERATE -> onRegenerateKey()
-                            PendingKeyAction.DELETE -> onDeleteKey()
-                        }
+                        pendingAction = null
+                        onConfirm()
                     }
                 ) {
-                    Text(confirmLabel)
+                    Text(confirmLabel, color = IPGuardGoldBright)
                 }
             },
             dismissButton = {
-                TextButton(onClick = { pendingKeyAction = null }) {
-                    Text(stringResource(R.string.key_action_cancel))
+                TextButton(onClick = { pendingAction = null }) {
+                    Text(stringResource(R.string.key_action_cancel), color = IPGuardPlatinum)
                 }
             }
         )
     }
 }
+
+private data class Quad<A, B, C, D>(
+    val first: A,
+    val second: B,
+    val third: C,
+    val fourth: D
+)

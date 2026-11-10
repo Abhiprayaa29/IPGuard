@@ -1,0 +1,154 @@
+name: Android Release APK Build & GitHub Release
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: "Release tag (e.g. v0.2.0-android-beta.1)"
+        required: true
+        default: "v0.2.0-android-beta.1"
+      release_title:
+        description: "GitHub Release title"
+        required: true
+        default: "IPGuard Authenticator v0.2.0 Android Beta"
+      api_base_url:
+        description: "Backend API base URL compiled into BuildConfig.API_BASE_URL"
+        required: false
+        default: "http://127.0.0.1:8000/api/v1"
+  push:
+    tags:
+      - 'v*-android*'
+
+permissions:
+  contents: write
+
+jobs:
+  android-release:
+    name: Test, Sign & Publish Android Release APK
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Validate Signing Secrets
+        env:
+          KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KEYSTORE_PASS: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASS: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          if [ -z "$KEYSTORE_B64" ] || [ -z "$KEYSTORE_PASS" ] || [ -z "$KEY_ALIAS" ] || [ -z "$KEY_PASS" ]; then
+            echo "::error::Missing required Android signing secrets (ANDROID_KEYSTORE_BASE64, ANDROID_KEYSTORE_PASSWORD, ANDROID_KEY_ALIAS, ANDROID_KEY_PASSWORD)."
+            exit 1
+          fi
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Run Android Unit Tests
+        working-directory: mobile-authenticator
+        run: |
+          chmod +x ./gradlew
+          ./gradlew testDebugUnitTest --no-daemon
+
+      - name: Decode Signing Keystore
+        id: decode_keystore
+        env:
+          KEYSTORE_B64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          KEYSTORE_FILE="$RUNNER_TEMP/ipguard-release.jks"
+          printf '%s' "$KEYSTORE_B64" | base64 --decode > "$KEYSTORE_FILE"
+          echo "keystore_path=$KEYSTORE_FILE" >> "$GITHUB_OUTPUT"
+
+      - name: Build Signed Release APK
+        working-directory: mobile-authenticator
+        env:
+          ANDROID_KEYSTORE_PATH: ${{ steps.decode_keystore.outputs.keystore_path }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          IPGUARD_API_URL: ${{ github.event.inputs.api_base_url || 'http://127.0.0.1:8000/api/v1' }}
+        run: |
+          ./gradlew clean assembleRelease --no-daemon
+
+      - name: Clean Up Decoded Keystore
+        if: always()
+        run: rm -f "$RUNNER_TEMP/ipguard-release.jks"
+
+      - name: Verify Signed APK & Generate SHA-256 Checksum
+        id: verify_apk
+        working-directory: mobile-authenticator
+        run: |
+          APK_SRC=$(find app/build/outputs/apk/release -name "*.apk" | head -n 1)
+          if [ -z "$APK_SRC" ] || [ ! -f "$APK_SRC" ]; then
+            echo "::error::Release APK was not generated."
+            exit 1
+          fi
+
+          mkdir -p dist
+          ASSET_NAME="IPGuard-Authenticator-v0.2.0-beta.1.apk"
+          cp "$APK_SRC" "dist/$ASSET_NAME"
+
+          APKSIGNER=$(find "$ANDROID_HOME/build-tools" -name apksigner | sort -V | tail -n 1)
+          if [ -n "$APKSIGNER" ]; then
+            "$APKSIGNER" verify --verbose --print-certs "dist/$ASSET_NAME"
+          fi
+
+          (cd dist && sha256sum "$ASSET_NAME" > SHA256SUMS.txt)
+          cat dist/SHA256SUMS.txt
+
+          TAG_NAME="${{ github.event.inputs.release_tag }}"
+          if [ -z "$TAG_NAME" ]; then
+            TAG_NAME="${GITHUB_REF_NAME}"
+          fi
+          TITLE="${{ github.event.inputs.release_title }}"
+          if [ -z "$TITLE" ]; then
+            TITLE="IPGuard Authenticator $TAG_NAME"
+          fi
+          echo "tag_name=$TAG_NAME" >> "$GITHUB_OUTPUT"
+          echo "release_title=$TITLE" >> "$GITHUB_OUTPUT"
+          echo "apk_path=mobile-authenticator/dist/$ASSET_NAME" >> "$GITHUB_OUTPUT"
+          echo "sha_path=mobile-authenticator/dist/SHA256SUMS.txt" >> "$GITHUB_OUTPUT"
+
+      - name: Publish GitHub Pre-Release (Private Repo)
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="${{ steps.verify_apk.outputs.tag_name }}"
+          TITLE="${{ steps.verify_apk.outputs.release_title }}"
+          APK="${{ steps.verify_apk.outputs.apk_path }}"
+          SHA="${{ steps.verify_apk.outputs.sha_path }}"
+
+          gh release create "$TAG" "$APK" "$SHA" \
+            --title "$TITLE" \
+            --prerelease \
+            --notes-file <(cat <<'EOF'
+          ## IPGuard Authenticator Release
+
+          ### Security Architecture
+          - **Native Face Authentication Gate:** AndroidX `BiometricPrompt` (`BIOMETRIC_WEAK`) pre-signing verification.
+          - **Hardware-Bound ECDSA P-256:** Non-exportable signing key inside Android Keystore (`TEE` / `StrongBox`).
+          - **CryptoObject Signing Authorization:** Authorized via `BIOMETRIC_STRONG` or `DEVICE_CREDENTIAL`.
+          - **QR Challenge-Response & One-Time Enrollment:** Ephemeral browser session challenges with single-device binding.
+
+          ### Compatibility & Known Limitations
+          - Verified physically on Samsung Galaxy A54 5G (`SM-A546E`, Android 16 / API 36), `minSdk 28`, `targetSdk 36`.
+          - Android public API `BIOMETRIC_WEAK` selects strength tier rather than forcing face-only modality on all OEMs.
+          - Repository is private; download requires authorized GitHub repository access.
+
+          ### Installation
+          1. Verify the APK checksum using `SHA256SUMS.txt`.
+          2. Install `IPGuard-Authenticator-v0.2.0-beta.1.apk` on your Android device (allow installs from this source when prompted).
+          3. Open **IPGuard Authenticator** and complete One-Time Device Enrollment.
+          EOF
+          )

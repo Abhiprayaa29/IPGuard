@@ -24,17 +24,19 @@ import com.ipguard.authenticator.R
 import com.ipguard.authenticator.ui.camera.CameraPreview
 import com.ipguard.authenticator.ui.camera.QrCodeAnalyzer
 import com.ipguard.authenticator.ui.camera.rememberCameraPermissionState
+import com.ipguard.authenticator.ui.components.AppPill
 import com.ipguard.authenticator.ui.components.AuthenticatorScreen
 import com.ipguard.authenticator.ui.components.CameraStage
 import com.ipguard.authenticator.ui.components.InformationCard
 import com.ipguard.authenticator.ui.components.InlineLink
 import com.ipguard.authenticator.ui.components.NoticeCard
 import com.ipguard.authenticator.ui.components.NoticeTone
+import com.ipguard.authenticator.ui.components.PillTone
 import com.ipguard.authenticator.ui.components.PrincipleRow
 import com.ipguard.authenticator.ui.components.ScreenActions
 import com.ipguard.authenticator.ui.components.SectionTitle
-import com.ipguard.authenticator.ui.theme.IPGuardGold
-import com.ipguard.authenticator.ui.theme.IPGuardMistMuted
+import com.ipguard.authenticator.ui.theme.IPGuardGoldBright
+import com.ipguard.authenticator.ui.theme.IPGuardSlate
 
 @Composable
 fun QrScannerScreen(
@@ -60,23 +62,29 @@ fun QrScannerScreen(
     val overlayText = when {
         !permission.granted -> stringResource(R.string.scanner_overlay_permission)
         cameraError -> stringResource(R.string.scanner_overlay_error)
-        else -> stringResource(R.string.scanner_overlay_searching)
+        else -> "Align Web Console QR challenge inside frame"
     }
 
     AuthenticatorScreen(
-        eyebrow = stringResource(R.string.scanner_eyebrow),
-        title = stringResource(R.string.scanner_title),
-        subtitle = stringResource(R.string.scanner_subtitle),
+        eyebrow = "STEP 01 · QR CHALLENGE",
+        title = "Scan challenge QR",
+        subtitle = "Point the rear camera at the IPGuard Web Console challenge QR code to validate session origin and nonce.",
         modifier = modifier,
         onBack = onBack
     ) {
+        AppPill(
+            text = if (permission.granted && !cameraError) "ON-DEVICE ML KIT SCANNER" else "CAMERA REQUIRED",
+            tone = if (permission.granted && !cameraError) PillTone.GOLD else PillTone.DANGER
+        )
+        Spacer(Modifier.height(16.dp))
+
         if (permission.granted && !cameraError) {
             key(cameraAttempt) {
                 CameraStage(
                     badge = stringResource(R.string.scanner_camera_badge),
                     label = stringResource(R.string.scanner_camera_label),
                     monogram = "QR",
-                    accent = IPGuardGold,
+                    accent = IPGuardGoldBright,
                     overlayText = overlayText,
                     cameraContent = {
                         CameraPreview(
@@ -105,7 +113,7 @@ fun QrScannerScreen(
                     stringResource(R.string.scanner_camera_hint)
                 },
                 monogram = "QR",
-                accent = IPGuardGold
+                accent = IPGuardGoldBright
             )
         }
 
@@ -117,10 +125,10 @@ fun QrScannerScreen(
                 Text(
                     text = stringResource(R.string.camera_permission_body),
                     style = MaterialTheme.typography.bodyMedium,
-                    color = IPGuardMistMuted
+                    color = IPGuardSlate
                 )
             }
-            Spacer(Modifier.height(14.dp))
+            Spacer(Modifier.height(12.dp))
             NoticeCard(
                 text = stringResource(R.string.camera_permission_denied_notice),
                 tone = NoticeTone.WARNING
@@ -137,30 +145,30 @@ fun QrScannerScreen(
 
         Spacer(Modifier.height(14.dp))
         InformationCard {
-            SectionTitle(text = stringResource(R.string.scanner_safety_title))
-            Spacer(Modifier.height(16.dp))
+            SectionTitle(text = "CHALLENGE VALIDATION SAFETY")
+            Spacer(Modifier.height(14.dp))
             PrincipleRow(
                 marker = "01",
                 text = stringResource(R.string.scanner_safety_one)
             )
-            Spacer(Modifier.height(14.dp))
+            Spacer(Modifier.height(12.dp))
             PrincipleRow(
                 marker = "02",
                 text = stringResource(R.string.scanner_safety_two)
             )
-            Spacer(Modifier.height(14.dp))
+            Spacer(Modifier.height(12.dp))
             PrincipleRow(
                 marker = "03",
                 text = stringResource(R.string.scanner_safety_three)
             )
         }
 
-        Spacer(Modifier.height(14.dp))
+        Spacer(Modifier.height(12.dp))
         NoticeCard(
-            text = stringResource(R.string.scanner_notice),
-            tone = NoticeTone.WARNING
+            text = "Challenges are validated strictly on-device before biometric prompts appear. No QR image frames are stored.",
+            tone = NoticeTone.INFO
         )
-        Spacer(Modifier.height(24.dp))
+        Spacer(Modifier.height(22.dp))
 
         when {
             !permission.granted -> {
