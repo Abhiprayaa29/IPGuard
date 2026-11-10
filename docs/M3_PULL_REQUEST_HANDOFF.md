@@ -116,8 +116,8 @@ All tests were executed directly in the project environment and confirmed green 
 
 ## 5. Security Review Reference & Verdict
 
-- **Independent Security Review Document:** [`docs/M3_FINAL_SECURITY_REVIEW.md`](file:///C:/Users/user/Documents/02_Projects/IPGuard/docs/M3_FINAL_SECURITY_REVIEW.md)
-- **Integration Audit Document:** [`docs/M3_ANISA_INTEGRATION_REPORT.md`](file:///C:/Users/user/Documents/02_Projects/IPGuard/docs/M3_ANISA_INTEGRATION_REPORT.md)
+- **Independent Security Review Document:** [`docs/M3_FINAL_SECURITY_REVIEW.md`](M3_FINAL_SECURITY_REVIEW.md)
+- **Integration Audit Document:** [`docs/M3_ANISA_INTEGRATION_REPORT.md`](M3_ANISA_INTEGRATION_REPORT.md)
 - **Verdict:** **`APPROVED FOR PR`**
 - **Summary of Remediated Critical Vulnerabilities:**
   1. *SEC-01 (Auth Bypass):* Eliminated prototype `dev-user` bypass. Replaced with strict hardware session verification (`get_current_authenticated_device`).

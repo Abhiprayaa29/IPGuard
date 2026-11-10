@@ -44,6 +44,19 @@ class Settings(BaseSettings):
         default=50 * 1024 * 1024,
         description="Maximum allowed asset file upload size in bytes (default 50 MB).",
     )
+    stego_signing_private_key_b64: str | None = Field(
+        default=None,
+        description="Base64 Ed25519 32-byte seed for PNG LSB signing; provide through a secret manager.",
+    )
+    stego_active_key_id: str | None = Field(default=None, description="Active Ed25519 public key ID (32 lowercase hex chars).")
+    stego_public_keys_json: str | None = Field(
+        default=None,
+        description="JSON object mapping Ed25519 key IDs to Base64 raw public keys.",
+    )
+    stego_max_image_bytes: int = Field(default=50 * 1024 * 1024, ge=1)
+    stego_max_image_pixels: int = Field(default=20_000_000, ge=1)
+    stego_max_image_dimension: int = Field(default=10_000, ge=1)
+    stego_max_payload_bytes: int = Field(default=4 * 1024 * 1024, ge=0)
 
     @property
     def notes_master_key_bytes(self) -> bytes:

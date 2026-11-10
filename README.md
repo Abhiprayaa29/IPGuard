@@ -1,561 +1,366 @@
-# IPGuard — Secure Digital Asset Protection
+# IPGuard — Secure Digital Asset Protection Platform
 
-[![Milestone](https://img.shields.io/badge/Milestone-M3--Complete-brightgreen.svg)](docs/M3_ALIZA_ASSET_VAULT_INTEGRATION.md)
-[![Backend Tests](https://img.shields.io/badge/Backend%20Tests-114%2F114%20PASS-success.svg)](backend/tests/)
-[![Android Tests](https://img.shields.io/badge/Android%20Tests-59%2F59%20PASS-success.svg)](mobile-authenticator/app/src/test/)
-[![Python](https://img.shields.io/badge/Python-3.13-blue.svg)](https://www.python.org/)
-[![Node](https://img.shields.io/badge/Node-22%20LTS-green.svg)](https://nodejs.org/)
-[![Android API](https://img.shields.io/badge/Android%20API-28--36-orange.svg)](docs/ANDROID_COMPATIBILITY.md)
-[![Repository Visibility](https://img.shields.io/badge/Visibility-Private-red.svg)](#24-license-and-project-usage-information)
+[![Milestone Status](https://img.shields.io/badge/Status-M0--M4%20Verified%20%26%20Frozen-brightgreen.svg)](#key-features)
+[![Backend Tests](https://img.shields.io/badge/Backend%20Pytest-209%2F209%20PASS%20(100%25)-success.svg)](#testing)
+[![Frontend Build](https://img.shields.io/badge/Frontend%20Build-Vite%20%2F%20React%2019%20PASS-success.svg)](#testing)
+[![Browser Acceptance](https://img.shields.io/badge/Browser%20Acceptance-Playwright%20PASS-success.svg)](#screenshots--visual-showcase)
+[![Python](https://img.shields.io/badge/Python-3.13.2-blue.svg)](https://www.python.org/)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.115-teal.svg)](https://fastapi.tiangolo.com/)
+[![React](https://img.shields.io/badge/React-19.3-61dafb.svg)](https://react.dev/)
+[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-17.11-336791.svg)](https://www.postgresql.org/)
+[![Android SDK](https://img.shields.io/badge/Android%20API-28--36-orange.svg)](mobile-authenticator/)
+[![Cryptography](https://img.shields.io/badge/Ciphers-XChaCha20--Poly1305%20%7C%20Ed25519%20%7C%20ECDSA%20P--256-blueviolet.svg)](#security-architecture)
 
-IPGuard is a secure digital asset protection platform designed to store, manage, and cryptographically protect sensitive digital files and intellectual property. IPGuard enforces a **Zero-Trust hardware-backed device binding architecture**, where a companion native Android Authenticator app functions as a hardware security key. Sensitive web console operations and logins require out-of-band cryptographic challenge signatures created inside the Android Keystore (TEE / StrongBox).
+> **IPGuard** is an end-to-end digital asset protection platform that unifies **hardware-bound mobile authentication**, **authenticated zero-knowledge file encryption**, and **tamper-evident cryptographic steganography**.
 
 ---
 
 ## Table of Contents
 
-1. [Project Title and Introduction](#1-project-title-and-introduction)
-2. [Project Purpose and Problem Statement](#2-project-purpose-and-problem-statement)
-3. [Key Features & Implementation Status](#3-key-features--implementation-status)
-4. [Architecture Overview](#4-architecture-overview)
-5. [Device Enrollment & Authentication Lifecycle](#5-device-enrollment--authentication-lifecycle)
-6. [Technology Stack](#6-technology-stack)
-7. [Repository Structure](#7-repository-structure)
-8. [Milestone Roadmap](#8-milestone-roadmap)
-9. [Prerequisites](#9-prerequisites)
-10. [Installation Guide](#10-installation-guide)
-11. [Environment Configuration](#11-environment-configuration)
-12. [PostgreSQL Setup & Migrations](#12-postgresql-setup--migrations)
-13. [Backend Setup & Execution](#13-backend-setup--execution)
-14. [Frontend Setup & Execution](#14-frontend-setup--execution)
-15. [Android Setup & Execution](#15-android-setup--execution)
-16. [Physical Android Device Connection (ADB Reverse)](#16-physical-android-device-connection-adb-reverse)
-17. [Running Automated Tests](#17-running-automated-tests)
-18. [Building the Application](#18-building-the-application)
-19. [API Documentation](#19-api-documentation)
-20. [Security Architecture & Threat Model](#20-security-architecture--threat-model)
-21. [Known Limitations & Architectural Boundaries](#21-known-limitations--architectural-boundaries)
-22. [Collaboration Guide](#22-collaboration-guide)
-23. [Contribution Guide](#23-contribution-guide)
-24. [Security Reporting](#24-security-reporting)
-25. [License and Project Usage Information](#25-license-and-project-usage-information)
+1. [Project Overview](#project-overview)
+2. [Key Features & Milestone Implementation](#key-features--milestone-implementation)
+3. [System Architecture](#system-architecture)
+4. [Technology Stack](#technology-stack)
+5. [System Workflow](#system-workflow)
+6. [Screenshots & Visual Showcase](#screenshots--visual-showcase)
+7. [Getting Started & Installation](#getting-started--installation)
+8. [Testing & Quality Verification](#testing--quality-verification)
+9. [Security Architecture & Cryptographic Design](#security-architecture--cryptographic-design)
+10. [Known Limitations](#known-limitations)
+11. [Future Roadmap](#future-roadmap)
+12. [Project Documentation Links](#project-documentation-links)
+13. [License & Usage](#license--usage)
 
 ---
 
-## 1. Project Title and Introduction
+## Project Overview
 
-**IPGuard — Secure Digital Asset Protection**
+### The Problem
+High-value digital media, intellectual property (IP), source code archives, CAD blueprints, and sensitive documents face critical vulnerabilities when shared or stored in centralized systems:
+1. **Credential Theft & Phishing:** Traditional passwords and SMS/email 2FA tokens can be intercepted or relayed via reverse proxies.
+2. **Data-at-Rest Exposure:** Plaintext or weakly encrypted cloud storage exposes original master files to unauthorized server administrators or disk exfiltration.
+3. **Attribution Loss & Watermark Removal:** Traditional visible watermarks are trivial to crop or remove via generative inpainting tools, while EXIF metadata is routinely stripped during web transmission.
+4. **Undetected File Tampering:** Organizations lack verifiable mechanisms to prove whether a distributed asset has been altered, forged, or compromised.
 
-IPGuard bridges modern web application convenience with the rigorous physical security guarantees of mobile hardware security modules. It operates across three interconnected subsystems:
-- **Web Management Console:** React 19 + TypeScript single-page application.
-- **Cryptographic Backend API:** Asynchronous Python 3.13 FastAPI gateway with PostgreSQL 17.
-- **Mobile Hardware Authenticator:** Native Android application (Kotlin + Jetpack Compose) running on Android API 28–36.
-
----
-
-## 2. Project Purpose and Problem Statement
-
-### Problem Statement
-Digital assets (proprietary source code, CAD blueprints, sensitive research, high-value media, and corporate records) face severe vulnerabilities when protected solely by traditional passwords or SMS/TOTP two-factor authentication:
-1. **Credential Stuffing & Phishing:** Software tokens can be intercepted or relayed via reverse proxies.
-2. **Key Exfiltration:** Cryptographic private keys stored in browser localStorage or software files are vulnerable to malware extraction.
-3. **QR-Jacking & Man-in-the-Middle:** Generic QR login flows often fail to bind the scanning session to the initiating browser origin.
-
-### IPGuard Solution
-IPGuard establishes a **Zero-Trust Device-Bound Identity**:
-- Cryptographic private signing keys are generated inside the Android hardware security module (TEE / StrongBox) and marked **strictly non-exportable**.
-- Login challenges are delivered via dynamic QR codes with 60-second TTL and strict origin binding (RFC 6454).
-- Anti QR-jacking architecture (SEC-02) ensures browser access tokens are never transmitted inside the QR code.
-- Out-of-band verification requires user biometric consent (`BIOMETRIC_STRONG` or secure PIN/pattern).
+### The IPGuard Solution
+IPGuard establishes a defense-in-depth security model across three synchronized layers:
+* **Hardware-Bound Identity (M2):** Eliminates static passwords. User actions and console access require cryptographic challenge signatures generated inside the **Android Keystore (TEE / StrongBox)** using **ECDSA NIST P-256** keys via dynamic QR codes.
+* **Authenticated Storage Isolation (M3):** Digital assets are encrypted prior to disk write using **XChaCha20-Poly1305 AEAD** with 24-byte CSPRNG nonces and per-device **HKDF-SHA256** key derivation.
+* **Invisible Cryptographic Watermarking (M4):** Digital proofs of authorship and license metadata are embedded directly into the 1-bit Least Significant Bits (LSB) of RGB pixel channels in PNG images. Every embedded watermark carries an `IPGW` binary frame signed with **Ed25519 (256-bit)** and checksummed with **SHA-256**, while all lifecycle operations are appended to an immutable **Audit Hash Chain**.
 
 ---
 
-## 3. Key Features & Implementation Status
+## Key Features & Milestone Implementation
 
-To ensure complete engineering transparency, features are categorized by their actual implementation state:
+### Milestone 0 — Smartphone Authenticator Feasibility (VERIFIED)
+- Evaluated and documented the technical feasibility of mobile hardware security.
+- Specified non-exportable Android Keystore key generation, CameraX barcode vision pipelines, and HTTPS challenge-response workflows.
 
-### Currently Implemented & Verified
-- [x] **Hardware Keystore Key Generation (M2.3-A):** NIST P-256 (`secp256r1`) key pair generation in Android Keystore with non-exportable private keys (`privateKey.encoded == null`).
-- [x] **Adaptive Biometric & Credential Signing (M2.3-B):** `BiometricPrompt` with `CryptoObject` supporting Class 3 biometrics and hardware Gatekeeper PIN/pattern fallback.
-- [x] **Vision Pipeline & QR Decoding (M2.0–M2.2):** CameraX and Google ML Kit on-device barcode parsing with zero external network transmission.
-- [x] **Backend Device Registry & Verification Engine (M2.4-B):** PostgreSQL storage, pessimistic row-level locking (`SELECT ... FOR UPDATE` SEC-01), and ASN.1 DER ECDSA signature verification.
-- [x] **Dynamic Web QR Authentication (M2.4-C):** Dynamic QR generation, 60s countdown timer, auto-refresh, and Anti QR-jacking browser secret binding (SEC-02).
-- [x] **Mobile Networking & Challenge Approval (M2.4-D):** OkHttp 4.12.0 client with connection lifecycle management, approval UI, and physical end-to-end verification.
-- [x] **One-Time Device Enrollment & Sign-In Only Lifecycle (M2 Hardening):** Hardware authenticators are enrolled once (`ACTIVE`), subsequent logins strictly perform hardware challenge-response (`Sign In`), duplicate enrollments are rejected with HTTP 409 `DEVICE_ALREADY_REGISTERED` via pessimistic row-level locking, and administrative unregistration decouples the device without deleting records.
-- [x] **Secure Notes Digital Vault (M3 Core):** Zero-Knowledge encrypted personal notes using HKDF-SHA256 key derivation, AES-256-GCM authenticated encryption (random 96-bit IV, 128-bit authentication tag), educational Vigenère transformation layer, and strict owner isolation bound to the verified M2 hardware `device_id`.
-- [x] **Digital Asset Vault & File Protection (M3 Core):** True XChaCha20-Poly1305 AEAD encrypted file storage (`PyNaCl` / libsodium C-bindings), 24-byte CSPRNG nonces, 16-byte Poly1305 authentication tags, per-device HKDF-SHA256 key isolation, canonical AAD context binding (`v1|device_id|asset_id`), atomic temporary-to-permanent file writes (`.tmp` to permanent), and magic-byte signature validation blocking dangerous executable formats.
-- [x] **Full-Stack Asset Vault Console (M3 Core):** React 19 single-page console with drag-and-drop file upload, upload progress tracking, category filtering (Images, Docs, Archives), in-memory decrypted image preview, original binary download stream with automatic URL revocation, in-place rename dialog, permanent delete confirmation, and persistent `sessionStorage` hardware session binding.
-- [x] **Browser End-to-End Verification (M3 Core):** Comprehensive browser testing of Asset Vault workflows (upload, in-memory preview, in-place rename, oversized file >50MB rejection, PDF upload, dynamic filtering by Image/Doc category, and cryptographic metadata inspection) using authenticated sessions authorized via M2 hardware authenticator.
-- [x] **Fail-Closed Negative Security Enforcement:** Rejection of un-enrolled devices, expired challenges, unauthorized cross-device asset access, corrupted ciphertexts, and invalid origin headers.
+### Milestone 1 — Foundation & Security Infrastructure (VERIFIED)
+- **Asynchronous FastAPI Core:** Production-ready Python 3.13 backend gateway.
+- **Fail-Closed Configuration:** Centralized Pydantic settings enforcing strict production key requirements.
+- **Safe Error Envelopes:** Standardized JSON error responses masking internal database stack traces.
+- **PostgreSQL 17 Integration:** Managed schema evolution via Alembic migrations (0001–0006 baseline).
 
-### Planned Features (Future Milestones)
+### Milestone 2 — Hardware Device Authentication (VERIFIED)
+- **Android Authenticator Companion:** Native Kotlin app running on Android API 28–36 (Jetpack Compose).
+- **Hardware-Isolated ECDSA P-256:** Cryptographic private keys generated inside Android Keystore (`privateKey.encoded == null`).
+- **Dynamic Web QR Authentication:** Ephemeral session challenges (60s TTL) with Anti-QR Jacking browser secrets (SEC-02).
+- **One-Time Device Enrollment:** Enforces strict hardware binding via PostgreSQL row-level locks (`SELECT FOR UPDATE`), rejecting duplicate registrations.
+- *(Note: Native Face Authentication via Android `BiometricPrompt` is a planned future enhancement).*
 
-#### Milestone 4 — Integrity & Advanced Protection (PLANNED)
-- [ ] **Asset Integrity Monitoring:** Periodic SHA-256 asset integrity verification, detection of unauthorized file modifications, integrity status reporting, and automated tamper detection.
-- [ ] **Audit Hash Chain:** Append-only cryptographic audit event ledger with SHA-256 linked event hashes (`prev_hash` linkage), audit chain verification, and tamper-evident audit history (tamper-evident, not tamper-proof).
-- [ ] **Steganographic Watermarking:** PNG LSB (Least Significant Bit) steganography for watermark embedding, watermark extraction, extracted watermark validation, and detection of damaged or modified embedded watermarks.
-- [ ] **Hardware Attestation:** Remote Keymaster / Keymint certificate chain verification for Android Keystore authenticators.
+### Milestone 3 — Authenticated Digital Asset Vault (VERIFIED)
+- **True XChaCha20-Poly1305 AEAD:** Symmetric encryption using 192-bit (24-byte) CSPRNG nonces and 128-bit Poly1305 MAC tags.
+- **HKDF-SHA256 Key Derivation:** Deterministic per-device cryptographic isolation (`v1|device_id|asset_id`).
+- **In-Memory Streaming Decryption:** Endpoint `GET /api/v1/assets/{id}/download` decrypts ciphertexts on-the-fly in memory, preventing plaintext writes to server disks.
+- **Secure Notes Vault:** AES-256-GCM encrypted personal notes with hardware device ownership checks.
 
-#### Milestone 5 — Advanced Integration, Blockchain Exploration & Release (PLANNED)
-- [ ] **Multi-Tenant Access Control & RBAC:** Multi-tenant user accounts (`users` table), role-based permissions, and enterprise organization mapping.
-- [ ] **Cross-Device Identity & Key Lifecycle:** Multi-device bindings per user context, cryptographic key rollover, and distributed revocation lists.
-- [ ] **Blockchain Exploration (Optional / Future Extension):** Public or consortium distributed ledger anchoring for cryptographic audit chain roots and timestamp proofs; strict architectural boundary ensuring zero plaintext assets or private keys are ever stored on-chain (strictly separated from the local audit hash chain).
-- [ ] **Production Hardening & Verification:** End-to-end multi-tenant integration testing, third-party security penetration testing, backup and disaster recovery validation, container packaging, and cloud production deployment.
-
----
-
-## 4. Architecture Overview
-
-```text
-+-------------------------------------------------------------------------+
-|                           IPGuard Architecture                          |
-+-------------------------------------------------------------------------+
-
-  1. WEB MANAGEMENT CONSOLE (Browser)
-     [React 19 + TypeScript + Vite + Tailwind CSS]
-     - Renders dynamic QR codes with 60-second TTL & SHA-256 channel tokens
-     - Polls authentication session state securely (SEC-02 browser binding)
-     - Port: http://localhost:5173
-                   |
-                   | REST API & Polling (SEC-02)
-                   v
-  2. REST API BACKEND & STORAGE
-     [Python 3.13 + FastAPI + PostgreSQL 17 + SQLAlchemy + Alembic]
-     - Pessimistic Row-Level Locking (SELECT FOR UPDATE - SEC-01)
-     - Origin Whitelist Enforcement (SEC-03)
-     - Cryptographic Verifier: NIST P-256 ECDSA (SHA256withECDSA)
-     - Session Engine: Registration, Challenge generation, Verification
-     - Port: http://localhost:8000 (Swagger: /docs)
-                   ^
-                   | Out-of-Band Physical Scanning & REST Verification
-                   | (via ADB reverse tcp:8000 tcp:8000 on physical USB)
-                   |
-  3. ANDROID NATIVE AUTHENTICATOR
-     [Kotlin + Jetpack Compose + Android Keystore (minSdk 28, targetSdk 36)]
-     - Google ML Kit Barcode Scanner + CameraX Vision Pipeline
-     - Non-Exportable Private Key inside Hardware TEE / StrongBox (ECDSA P-256)
-     - Adaptive BiometricPrompt with CryptoObject (Class 3 Strong Biometric or PIN/Pattern)
-     - Resilient OkHttp Client with explicit connection lifecycle control
-```
+### Milestone 4 — Steganography & Digital Watermarking (VERIFIED)
+- **PNG LSB Embedding Engine:** 1-bit per RGB channel spatial embedding preserving RGBA transparency.
+- **Binary Framing (`IPGW` v1):** 170-byte fixed header containing magic bytes, Watermark UUID, Source Asset UUID, Derivative UUID, payload length, and SHA-256 digest.
+- **Ed25519 Digital Signing:** Domain-separated 256-bit Edwards-curve digital signatures proving attribution.
+- **Derivative Asset Lineage:** Database schema associating derivatives to original masters (`source_asset_id`), enforcing delete cascade protection.
+- **Append-Only Audit Hash Chain:** Rolling SHA-256 hashes linking sequential audit events (`AuditEvent`) in PostgreSQL.
+- **Fail-Closed Extraction:** Watermark payloads are strictly withheld (HTTP 409 Conflict) if pixel tampering or signature invalidity is detected.
+- **Web Console Workflow:** Interactive UI in React 19 for upload, watermark configuration, embedding, downloading, verification, and payload extraction.
 
 ---
 
-## 5. Device Enrollment & Authentication Lifecycle
-
-IPGuard enforces the hardware authenticator security principle:
-> **A device is registered once. After successful registration, it can only sign in.**
-
-The companion Android smartphone acts as a **dedicated physical hardware security token**. Private keys are permanently bound to the device's hardware security module (TEE / StrongBox) and never cross the process or network boundary.
+## System Architecture
 
 ```mermaid
 flowchart TD
-    subgraph Enrollment ["1. First-Time Enrollment"]
-        E1[Install Android Authenticator] --> E2[Web: 'Register Device' Tab]
-        E2 --> E3[Scan ENROLLMENT QR Code]
-        E3 --> E4[Generate Keystore ECDSA P-256 Key]
-        E4 --> E5[Biometric / PIN User Authorization]
-        E5 --> E6[Sign Canonical Payload & Submit Public Key]
-        E6 --> E7[Backend PostgreSQL: Status ACTIVE]
+    subgraph ClientLayer ["Client & Interface Layer"]
+        WC["React 19 Web Console<br/>(Vite / Tailwind / TypeScript)"]
+        MA["Android Authenticator<br/>(Kotlin / CameraX / Compose)"]
     end
 
-    subgraph Authentication ["2. Subsequent Hardware Sign-In"]
-        A1[Enrolled Phone Status: ACTIVE] --> A2[Web: 'Mobile Sign-In' Tab]
-        A2 --> A3[Scan AUTHENTICATION QR Code]
-        A3 --> A4[Authorize with Existing Hardware Key]
-        A4 --> A5[Verify Signature & Grant Session]
-        A5 --> A6[Unlock Web Console & M3 Vault]
+    subgraph SecurityBoundary ["Hardware Security Module"]
+        KS["Android Keystore<br/>(TEE / StrongBox)"]
+        ECDSA["ECDSA NIST P-256<br/>(Non-Exportable Key)"]
+        KS --- ECDSA
     end
 
-    subgraph Management ["3. Device Lifecycle Management"]
-        M1[Web: Device Management] --> M2{Administrative Action}
-        M2 -- Revoke Access --> M3[Status: REVOKED<br>Registration Slot Retained]
-        M2 -- Unregister Device --> M4[Status: UNREGISTERED<br>Releases Slot, Preserves Notes]
-        M4 --> E1
+    subgraph Gateway ["FastAPI Gateway & Core Engine"]
+        API["FastAPI REST Router<br/>(app.api.routes)"]
+        AUTH["Auth & Session Controller<br/>(Bearer Token / Origin Check)"]
+        VAULT["Asset Vault Orchestrator<br/>(app.services.assets)"]
+        STEGO["Steganography Engine<br/>(app.services.png_steganography)"]
+        AUDIT["Audit Chain Service<br/>(app.services.audit_chain)"]
     end
-```
 
-### First-Time Enrollment Flow
-1. **Device Preparation:** Install the IPGuard Authenticator on an Android device running API 28+ (tested through API 36).
-2. **Challenge Creation:** On the Web Console, select the **Register Device** tab to create an `ENROLLMENT` session challenge with a strict 60-second TTL.
-3. **Presence Gate & QR Scan:** In the mobile app, tap **Set up this device**, pass the front-camera presence check, and scan the QR code.
-4. **Hardware Key Initialization:** If the Android Keystore does not already hold the signing key (`ipguard_device_signing_v1`), the app invokes `ensureSigningKey()` to generate a non-exportable NIST P-256 (`secp256r1`) key pair inside the TEE/StrongBox.
-5. **Biometric Consent:** The user authorizes registration via `BiometricPrompt` using Class 3 strong biometrics (fingerprint) or the device's secure lock screen credential (PIN, pattern, password).
-6. **Backend Verification:** The Android client submits the canonical signature and raw X.509 SubjectPublicKeyInfo DER public key to `POST /api/v1/auth/devices/register`.
-7. **Active State:** The backend cryptographically validates the signature, ensures no duplicate registration exists, records the device with status **`ACTIVE`**, and atomically approves the web session.
+    subgraph StorageLayer ["Encrypted Storage & Database"]
+        PG[("PostgreSQL 17.11 DB<br/>- devices & auth_sessions<br/>- assets lineage<br/>- audit_events hash chain")]
+        DISK[("Physical Disk Storage<br/>(backend/storage/)<br/>XChaCha20-Poly1305 Ciphertexts")]
+    end
 
-### Subsequent Sign In Flow
-1. **Sign-In Only Lock:** Once enrolled, the Android app switches to trusted authenticator mode, locking out registration flows and offering **Sign In (Scan QR)**.
-2. **Challenge Acquisition:** The user initiates web login via the **Mobile Sign-In** tab, which displays an `AUTHENTICATION` session QR code.
-3. **Out-of-Band Signature:** The user scans the QR code. The app retrieves the canonical challenge bytes and requests hardware authorization via `BiometricPrompt`.
-4. **Existing Key Policy:** The challenge is signed strictly using the pre-existing, enrolled hardware signing key. The app **never generates a replacement key automatically** during sign-in.
-5. **Session Authorization:** Backend verifies the signature against the registered public key via PostgreSQL pessimistic row-level locking (`SELECT ... FOR UPDATE`), approving the web session and issuing the session token.
+    WC -- "1. Request Session Challenge" --> API
+    API -- "2. Dynamic QR (60s TTL)" --> WC
+    MA -- "3. Scan QR Code" --> WC
+    MA -- "4. Sign Nonce via Keystore" --> KS
+    MA -- "5. Submit ECDSA Signature" --> API
+    API -- "6. Approve Session" --> PG
+    WC -- "7. Authenticated Bearer Requests" --> API
 
-### Device Management (Revoke Access vs Unregister Device)
-Administrative controls on the Web Console (`/devices`) decouple authentication access from registration slot ownership:
-- **Revoke Access (`POST /api/v1/auth/devices/{device_id}/revoke`):**
-  Immediately terminates all active sessions and sets device status to `REVOKED`. The registration slot **remains locked** to prevent unauthorized re-registration from that device identity.
-- **Unregister Device (`POST /api/v1/auth/devices/{device_id}/unregister`):**
-  Sets `unregistered_at = now()`, marks registration status as `UNREGISTERED`, invalidates active sessions, and **frees the registration slot**. This allows a replacement device or the same device to undergo clean enrollment.
-- **Data & Secure Notes Preservation:**
-  Neither action deletes the database `Device` record or the associated Milestone 3 **Secure Notes**. Notes created by the device remain safely isolated under their `owner_id` (`device_id`). If the same device re-enrolls, its existing identity is reactivated, preserving note ownership seamlessly.
-
-### Security Notes
-- **Hardware Isolation:** Private signing keys reside exclusively within the Android hardware security module (TEE / StrongBox) and can never be extracted (`privateKey.encoded == null`).
-- **Public Key Verification:** Only public keys (X.509 DER) are sent to the backend for signature verification.
-- **Backend as Source of Truth:** Device registration and access states are authoritatively verified and enforced by the PostgreSQL backend using pessimistic locking. Local client states in SharedPreferences serve purely for UI responsiveness and synchronization.
-- **Non-Security Identifiers:** Device IDs (e.g., client UUIDs or Android IDs) are non-security identifiers; the cryptographic ECDSA signature verified against the enrolled public key is the sole authoritative proof of hardware identity.
-
----
-
-## 6. Technology Stack
-
-| Layer | Component | Version / Specification | Role |
-|---|---|---|---|
-| **Frontend** | React | 19.3.1 | Core UI framework |
-| | TypeScript | 7.0.2 | Strict static typing |
-| | Vite | 8.3.6 | Frontend bundler & dev server |
-| | Tailwind CSS | 4.3.4 | Utility-first CSS engine |
-| **Backend** | Python | 3.13 | Primary server runtime |
-| | FastAPI | 0.115+ | High-performance async API |
-| | SQLAlchemy | 2.x | ORM & database query engine |
-| | Alembic | 1.14+ | Schema migration framework |
-| | Cryptography | 44.x | ECDSA P-256 verification |
-| **Database** | PostgreSQL | 17 | Relational persistence & row locking |
-| **Mobile** | Kotlin | 2.2.21 | Native Android development |
-| | Jetpack Compose | BOM 2025.12.01 | Declarative mobile UI |
-| | Android Keystore | API 28–36 | Hardware-backed key generation |
-| | CameraX | 1.6.2 | Vision pipeline management |
-| | Google ML Kit | 16.1.7 / 17.3.0 | On-device face & barcode ML |
-| | OkHttp | 4.12.0 | Asynchronous HTTP client |
-| **DevOps** | GitHub Actions | Ubuntu Latest | Continuous integration quality gate |
-
----
-
-## 7. Repository Structure
-
-```text
-IPGuard/
-├── .github/                        # CI workflows, PR & Issue templates
-│   ├── workflows/ci.yml            # Automated CI quality gate
-│   ├── ISSUE_TEMPLATE/             # Bug report & feature request templates
-│   └── PULL_REQUEST_TEMPLATE.md    # Pull Request submission checklist
-├── backend/                        # FastAPI REST API & Crypto Verifier
-│   ├── alembic.ini                 # Alembic migration configuration
-│   ├── requirements.txt            # Python dependencies
-│   ├── app/                        # Application source code
-│   │   ├── api/routes/             # Endpoint controllers (auth, health, system)
-│   │   ├── core/                   # Settings, origin validator, errors
-│   │   ├── db/migrations/          # Alembic version files
-│   │   ├── models/                 # SQLAlchemy ORM models (devices, sessions)
-│   │   └── services/               # Cryptography verifier, auth session service
-│   └── tests/                      # Pytest test suite (65 test cases)
-├── frontend/                       # React 19 + TypeScript Web Console
-│   ├── src/
-│   │   ├── components/auth/        # QR cards, countdown timers, displays
-│   │   ├── hooks/                  # Custom hooks (useQrAuth)
-│   │   └── pages/auth/             # QR login & system status views
-│   ├── package.json                # Dependencies and build scripts
-│   └── vite.config.ts              # Vite bundler configuration
-├── mobile-authenticator/           # Android Native Kotlin Authenticator
-│   ├── app/
-│   │   ├── build.gradle.kts        # Android build config (minSdk 28, targetSdk 36)
-│   │   └── src/main/java/com/ipguard/authenticator/
-│   │       ├── network/            # OkHttp client, DTOs, API service
-│   │       ├── security/           # Keystore manager, signing policy
-│   │       └── ui/                 # Jetpack Compose screens and navigation
-│   └── build.gradle.kts            # Root Gradle configuration
-├── docs/                           # Architecture, security & audit reports
-│   ├── ANDROID_COMPATIBILITY.md    # Cross-device compatibility specification
-│   ├── COLLABORATION_GUIDE.md      # Collaborator onboarding & roadmap guide
-│   ├── M2_ARCHITECTURE.md          # Milestone 2 system architecture
-│   ├── M2.4_API_CONTRACT.md        # REST API endpoint contract
-│   └── M2_MASTER_FINAL_AUDIT_REPORT.md # Master audit verification report
-├── .env.example                    # Docker Compose environment template
-├── CONTRIBUTING.md                 # Contribution & branching standards
-├── docker-compose.yml              # Local PostgreSQL 17 container
-├── README.md                       # Master documentation
-└── SECURITY.md                     # Vulnerability disclosure policy
+    API --> AUTH
+    AUTH --> VAULT
+    VAULT -- "Encr/Decr (HKDF-SHA256)" --> DISK
+    VAULT --> STEGO
+    STEGO -- "Ed25519 Sign & SHA-256 LSB" --> DISK
+    STEGO --> AUDIT
+    AUDIT -- "Rolling SHA-256 Prev-Hash" --> PG
 ```
 
 ---
 
-## 8. Milestone Roadmap
+## Technology Stack
 
-| Milestone | Focus Area | Status | Verification Summary / Objectives |
-|---|---|:---:|---|
-| **M1** | Foundation & Architecture | **COMPLETE** | React frontend, FastAPI backend, PostgreSQL 17, Alembic migrations, Pytest suite. |
-| **M2** | Authentication & Device Security | **COMPLETE** | **M2.0–M2.3:** Keystore ECDSA P-256, BiometricPrompt + CryptoObject, CameraX/ML Kit.<br>**M2.4-B:** Backend device registry, session locking (SEC-01), origin validation (SEC-03).<br>**M2.4-C:** Web QR auth UI, countdown timer, anti QR-jacking channel binding (SEC-02).<br>**M2.4-D:** Android QR parsing, hardware signing, OkHttp integration.<br>**M2 Hardening:** One-Time Device Enrollment and Sign-In Only lifecycle (Physically Verified on Samsung A54 5G). |
-| **M3** | Core Cryptography & Asset Protection | **COMPLETE** | **Digital Asset Vault:** True XChaCha20-Poly1305 AEAD encrypted file storage (`PyNaCl` / libsodium), 24-byte CSPRNG nonces, 16-byte Poly1305 auth tags, per-device HKDF-SHA256 key isolation, AAD context binding (`v1|device_id|asset_id`), atomic temporary-to-permanent file writes, and magic-byte signature validation.<br>**Secure Notes Vault:** AES-256-GCM + HKDF-SHA256 + Vigenère layer + M2 device-bound owner isolation.<br>**Full-Stack Console & E2E:** 100% verified via automated regression tests (114 backend tests) and browser E2E workflows authorized via physical Android hardware token (Samsung SM-A546E). |
-| **M4** | Integrity & Advanced Protection | **PLANNED** | **Asset Integrity Monitoring:** Periodic SHA-256 asset digest auditing and unauthorized modification detection.<br>**Audit Hash Chain:** Immutable-style append-only SHA-256 linked event hashes creating a tamper-evident audit history.<br>**Steganographic Watermarking:** PNG LSB watermark embedding, extraction, validation, and damage detection. |
-| **M5** | Advanced Integration, Blockchain Exploration & Release | **PLANNED** | **Access & Identity:** Multi-tenant access control (RBAC) and cross-device key lifecycle.<br>**Blockchain Exploration:** Optional public/consortium distributed ledger anchoring for audit chain roots and timestamp proofs (zero plaintext assets or keys on-chain).<br>**Release Readiness:** Penetration testing, backup/recovery validation, packaging, and production deployment. |
-
----
-
-## 9. Prerequisites
-
-Ensure your development environment meets the following specifications:
-- **Operating System:** Windows 10/11, macOS, or Linux.
-- **Python:** Python 3.13 (or 3.11+) with virtual environment support.
-- **Node.js:** Node.js 22 LTS or newer with npm.
-- **Java Development Kit (JDK):** OpenJDK 17.
-- **Android SDK:** API 28–36, Platform-tools (`adb`).
-- **Database:** PostgreSQL 17 (native or Docker Desktop).
+| Domain | Technologies |
+| :--- | :--- |
+| **Frontend Web Console** | React 19.3.1, Vite 8.3.6, TypeScript 7.0.2, Tailwind CSS 4.3.4, Lucide React, Axios |
+| **Backend Core API** | Python 3.13.2, FastAPI 0.115, Starlette, Uvicorn, Pydantic v2 |
+| **Database & Migrations**| PostgreSQL 17.11, SQLAlchemy 2.0, Psycopg 3, Alembic (Migrations 0001–0009) |
+| **Cryptographic Suite** | PyCA/Cryptography (Ed25519, XChaCha20-Poly1305, HKDF, SHA-256, ECDSA NIST P-256) |
+| **Image Processing** | Pillow (PIL Fork) 11.x (8-bit truecolor RGB/RGBA raster manipulation) |
+| **Mobile Hardware Client**| Android SDK (API 28–36), Kotlin, Jetpack Compose, Android Keystore, CameraX, ZXing |
+| **Testing & Automation** | Pytest 9.2, Playwright Chromium, AnyIO |
 
 ---
 
-## 10. Installation Guide
+## System Workflow
 
+```
+[ Master PNG Upload ]
+         │
+         ▼
+[ In-Memory Preview & Metadata ] ── (XChaCha20-Poly1305 Encrypted to Vault)
+         │
+         ▼
+[ Configure Watermark ] ─────────── (Auto-bind Hardware ID, Ed25519 Key ID, SHA-256 Digest)
+         │                          (Custom: Copyright, License, Statement, Description)
+         ▼
+[ LSB Embedding Engine ] ────────── (1-bit LSB in row-major RGB channels)
+         │                          (IPGW v1 Binary Framing + Ed25519 Digital Signature)
+         ▼
+[ Encrypted Derivative Created ] ── (Lineage: source_asset_id linked; audit chain appended)
+         │
+    ┌────┴───────────────────────────┬──────────────────────────────┐
+    ▼                                ▼                              ▼
+[ Download Watermarked PNG ]   [ Verify Watermark ]          [ Extract Metadata ]
+  (Decrypted byte-for-byte;      (Live validation of           (Structured JSON & text;
+   valid truecolor PNG file)      Ed25519 & SHA-256 digest)     strictly fail-closed on tamper)
+```
+
+---
+
+## Screenshots & Visual Showcase
+
+All screenshots were captured directly during automated Playwright browser acceptance testing on Chromium (1366x860) against live services:
+
+| Asset Vault Overview | Uploaded Master Image |
+| :---: | :---: |
+| ![Asset Vault](docs/screenshots/m4_acceptance/01_asset_vault_initial.png) | ![Master Uploaded](docs/screenshots/m4_acceptance/02_asset_uploaded.png) |
+| *Hardware-authenticated console with active device status.* | *Original master PNG uploaded and encrypted with AEAD.* |
+
+| Watermark Configuration | Embedding Success State |
+| :---: | :---: |
+| ![Watermark Configuration](docs/screenshots/m4_acceptance/03_watermark_config_modal.png) | ![Embedding Success](docs/screenshots/m4_acceptance/04_embed_success.png) |
+| *Auto-bound cryptographic parameters and custom metadata form.* | *Derivative asset created with verified Ed25519 signature.* |
+
+| Derivative Vault Listing | Cryptographic Verification |
+| :---: | :---: |
+| ![Vault with Derivative](docs/screenshots/m4_acceptance/05_vault_with_derivative.png) | ![Verify Watermark](docs/screenshots/m4_acceptance/06_verify_success_modal.png) |
+| *Derivative record linked to parent (`from 5dfe779a...`).* | *Live validation of Ed25519 signature and SHA-256 integrity.* |
+
+| Extracted Metadata Modal | Technical Inspect Panel |
+| :---: | :---: |
+| ![Payload Extraction](docs/screenshots/m4_acceptance/07_extract_payload_modal.png) | ![Asset Inspection](docs/screenshots/m4_acceptance/08_derivative_inspect_modal.png) |
+| *Structured metadata cards and raw JSON decoded from pixels.* | *Decrypted thumbnail preview and technical cipher specifications.* |
+
+---
+
+## Getting Started & Installation
+
+### Prerequisites
+* **Python:** 3.13.x (or `>= 3.11`)
+* **Node.js:** `>= 22.12.0` (with npm 10+)
+* **PostgreSQL:** `17.x` (17.11 recommended)
+* **Android Studio:** Ladybug or newer (for mobile authenticator)
+
+### 1. Database Setup
+Ensure PostgreSQL is active and create the database user:
+```sql
+CREATE USER ipguard WITH PASSWORD 'your_secure_password';
+CREATE DATABASE ipguard OWNER ipguard;
+```
+
+### 2. Backend Setup
 ```bash
-# 1. Clone repository
-git clone https://github.com/Abhiprayaa29/IPGuard.git
-cd IPGuard
-
-# 2. Initialize environment templates
-cp .env.example .env
-cp backend/.env.example backend/.env
-cp frontend/.env.example frontend/.env
-```
-
----
-
-## 11. Environment Configuration
-
-IPGuard strictly separates development configuration from secrets. **Never commit real `.env` files.**
-
-### Root `.env` (Docker Compose)
-```dotenv
-POSTGRES_DB=ipguard
-POSTGRES_USER=ipguard
-POSTGRES_PASSWORD=replace_with_a_strong_local_password
-POSTGRES_PORT=5432
-```
-
-### Backend `.env` (`backend/.env`)
-```dotenv
-APP_NAME=IPGuard
-APP_VERSION=1.0.0
-APP_ENV=development
-DATABASE_URL=postgresql+psycopg://ipguard:replace_with_a_strong_local_password@127.0.0.1:5432/ipguard
-CORS_ORIGINS=http://localhost:5173,http://127.0.0.1:5173
-TRUSTED_ORIGINS=http://localhost:5173,http://127.0.0.1:5173
-DEV_ADMIN_KEY=ipguard-dev-admin-secret-key
-```
-
-### Frontend `.env` (`frontend/.env`)
-```dotenv
-VITE_API_BASE_URL=http://localhost:8000/api/v1
-```
-
----
-
-## 12. PostgreSQL Setup & Migrations
-
-1. Start database via Docker Compose or native PostgreSQL 17 service:
-   ```bash
-   docker-compose up -d
-   ```
-2. Apply database migrations using Alembic:
-   ```powershell
-   cd backend
-   python -m venv .venv
-   .\.venv\Scripts\Activate.ps1
-   pip install -r requirements.txt
-   alembic -c alembic.ini upgrade head
-   ```
-
----
-
-## 13. Backend Setup & Execution
-
-Start the FastAPI application with Uvicorn:
-```powershell
 cd backend
-.\.venv\Scripts\Activate.ps1
-python -m uvicorn app.main:app --host 127.0.0.1 --port 8000 --timeout-keep-alive 60
+python -m venv .venv
+source .venv/bin/activate  # On Windows: .\.venv\Scripts\Activate.ps1
+pip install -r requirements.txt
+
+# Configure environment
+cp .env.example .env
+# Edit .env and supply your DATABASE_URL and local dev keys
+
+# Run database migrations (0001 through 0009)
+alembic upgrade head
+
+# Start FastAPI server
+uvicorn app.main:app --host 127.0.0.1 --port 8000 --reload
 ```
-- **API Documentation (Swagger UI):** `http://localhost:8000/docs`
-- **Health Endpoint:** `http://localhost:8000/api/v1/health`
+API Documentation will be live at: `http://127.0.0.1:8000/docs`
 
----
-
-## 14. Frontend Setup & Execution
-
-Start the Vite development server:
-```powershell
-cd frontend
+### 3. Frontend Setup
+```bash
+cd ../frontend
 npm install
+cp .env.example .env
 npm run dev
 ```
-- **Web Console:** `http://localhost:5173`
-- **QR Sign-In Page:** `http://localhost:5173/login`
-- **Device Management:** `http://localhost:5173/devices`
-- **Secure Notes Vault:** `http://localhost:5173/notes`
-- **Digital Asset Vault:** `http://localhost:5173/assets`
-- **System Status Dashboard:** `http://localhost:5173/system-status`
+Web Console will be accessible at: `http://127.0.0.1:5173`
+
+### 4. Android Authenticator Setup
+1. Open the `mobile-authenticator/` directory in Android Studio.
+2. Build and deploy the debug APK onto your physical Android device.
+3. Use ADB reverse proxy if testing over USB:
+   ```bash
+   adb reverse tcp:8000 tcp:8000
+   ```
 
 ---
 
-## 15. Android Setup & Execution
+## Testing & Quality Verification
 
-Build and install the Android Authenticator via Gradle:
-```powershell
-cd mobile-authenticator
-.\gradlew.bat installDebug
-adb shell am start -n com.ipguard.authenticator/.MainActivity
-```
+IPGuard enforces strict verification across all layers:
 
----
-
-## 16. Physical Android Device Connection (ADB Reverse)
-
-When testing with a physical Android device connected via USB, the mobile client must route traffic to the host computer's backend on port 8000.
-
-Run the following command while your phone is connected with USB Debugging enabled:
-```powershell
-adb reverse tcp:8000 tcp:8000
-```
-Verify active tunnels:
-```powershell
-adb reverse --list
-# Expected output: (reverse) tcp:8000 tcp:8000
-```
-
-> [!NOTE]
-> Do NOT use `10.0.2.2` when testing on physical hardware. `10.0.2.2` is exclusively an alias for host loopback on the Android Emulator.
-
----
-
-## 17. Running Automated Tests
-
-IPGuard maintains strict test quality gates across all three subsystems:
-
-### Backend Test Suite (Pytest)
-```powershell
+### 1. Backend Pytest Test Suite
+```bash
 cd backend
-python -m pytest -v
+pytest -v
 ```
-*Current result: 114 passed across 10 test suites (M1 + M2 + M3 Secure Notes + M3 Digital Asset Vault + Lifecycle suite).*
+* **Status:** **209 passed, 0 failed, 0 skipped** across all M1, M2, M3, and M4 modules.
+* **Concurrency:** Includes `test_audit_chain_postgres.py` row-lock serialization across 24 concurrent threads.
 
-### Frontend Typecheck & Production Build
-```powershell
+### 2. Frontend Static Check & Production Build
+```bash
 cd frontend
-npm run typecheck
-npm run build
+npm run typecheck    # TypeScript strict mode: 0 errors
+npm run build        # Production bundle compiled cleanly via Vite
 ```
-*Current result: 2,195 modules transformed with 0 errors.*
 
-### Android Unit Tests
-```powershell
-cd mobile-authenticator
-.\gradlew.bat testDebugUnitTest --no-daemon
+### 3. Automated Real Browser Acceptance Testing (Playwright)
+```bash
+cd backend
+python ../scripts/m4_browser_acceptance_test.py
 ```
-*Current result: 59 unit tests passed across 10 test suites in 0.45s, 0 failures, 0 errors.*
+* **Status:** 14-step automated user journey passed with **0 browser errors** and **0 failed network requests**.
+* **Distortion Verification:** $\text{MSE} = 0.009471$, $\text{PSNR} = 68.37\text{ dB}$ *(imperceptible watermark quality on 256x256 test sample)*.
 
 ---
 
-## 18. Building the Application
+## Security Architecture & Cryptographic Design
 
-### Frontend Production Bundle
-```powershell
-cd frontend && npm run build
-```
-Outputs static assets into `frontend/dist/`.
-
-### Android Debug APK
-```powershell
-cd mobile-authenticator && .\gradlew.bat assembleDebug --no-daemon
-```
-Outputs APK into `mobile-authenticator/app/build/outputs/apk/debug/app-debug.apk`.
-
----
-
-## 19. API Documentation
-
-Interactive OpenAPI / Swagger documentation is available at `http://localhost:8000/docs`.
-
-### Key Authentication & Device Endpoints
-- `POST /api/v1/auth/sessions` — Create new QR authentication or enrollment session.
-- `GET /api/v1/auth/sessions/{session_token}` — Poll session state (SEC-02 protected).
-- `POST /api/v1/auth/sessions/{session_token}/scan` — Notify backend that QR code was scanned.
-- `POST /api/v1/auth/sessions/{session_token}/verify` — Verify mobile ECDSA challenge signature.
-- `POST /api/v1/auth/devices/register` — Register newly enrolled hardware device public key.
-- `GET /api/v1/auth/devices/{device_id}/status` — Synchronize device enrollment and access status.
-- `POST /api/v1/auth/devices/{device_id}/revoke` — Revoke device access (retains registration lock).
-- `POST /api/v1/auth/devices/{device_id}/unregister` — Unregister device binding and free enrollment slot.
-- `GET /api/v1/auth/devices` — List registered devices (protected by dev admin key or bearer token).
-
-### Milestone 3 Secure Notes Endpoints
-- `GET /api/v1/notes` — List owner's encrypted notes (requires bearer token).
-- `POST /api/v1/notes` — Create encrypted note with AES-256-GCM ciphertext and Vigenère educational layer.
-- `GET /api/v1/notes/{id}` — Retrieve specific note ciphertext.
-- `PUT /api/v1/notes/{id}` — Update note ciphertext.
-- `DELETE /api/v1/notes/{id}` — Delete note.
-
-### Milestone 3 Digital Asset Vault Endpoints
-- `POST /api/v1/assets` — Upload digital asset with magic-byte validation, XChaCha20-Poly1305 encryption, and atomic storage.
-- `GET /api/v1/assets` — List digital assets owned by authenticated device (descending by timestamp).
-- `GET /api/v1/assets/{id}` — Retrieve digital asset metadata and SHA-256 ciphertext digest.
-- `GET /api/v1/assets/{id}/download` — Verify integrity, decrypt in memory, and download binary attachment.
-- `PATCH /api/v1/assets/{id}` — Rename digital asset without altering encrypted binary file.
-- `DELETE /api/v1/assets/{id}` — Delete asset record and permanently unlink ciphertext binary from disk.
-
-Full API contracts are documented in [`docs/M2.4_API_CONTRACT.md`](docs/M2.4_API_CONTRACT.md), [`docs/ONE_TIME_DEVICE_ENROLLMENT.md`](docs/ONE_TIME_DEVICE_ENROLLMENT.md), and [`docs/M3_ALIZA_ASSET_VAULT_INTEGRATION.md`](docs/M3_ALIZA_ASSET_VAULT_INTEGRATION.md).
+| Cryptographic Primitive | Role in IPGuard | Implementation Details |
+| :--- | :--- | :--- |
+| **XChaCha20-Poly1305** | Authenticated Storage Encryption | 192-bit CSPRNG nonces, 128-bit Poly1305 MAC tags. Protects all file ciphertexts at rest. |
+| **AES-256-GCM** | Secure Notes Encryption | 96-bit random IVs, 128-bit authentication tags. Encrypts personal notes records. |
+| **HKDF-SHA256** | Key Derivation Pipeline | Derives deterministic per-device subkeys from master keys, ensuring tenant isolation. |
+| **SHA-256** | Integrity Hashing & Checksums | Computes ciphertext baselines, payload integrity hashes, and rolling audit chain event hashes. |
+| **Ed25519 (256-bit)** | Steganographic Attribution | Asymmetric digital signature proving watermark authenticity under the trusted key. |
+| **ECDSA NIST P-256** | Hardware Device Authentication | Non-exportable keys in Android Keystore used to sign out-of-band login challenges. |
+| **Spatial LSB Framing** | Invisible Watermarking | Embeds 170-byte fixed `IPGW` v1 binary frames into 1-bit LSBs of RGB pixel channels. |
+| **Audit Hash Chain** | Non-Repudiation Audit Ledger | Sequential SHA-256 event linking ($\text{EventHash}_n = \text{SHA-256}(\text{EventHash}_{n-1} \parallel \dots)$). |
 
 ---
 
-## 20. Security Architecture & Threat Model
+## Implementation Boundaries & Known Limitations
 
-IPGuard implements defense-in-depth security:
-1. **Hardware-Isolated Private Keys (Keystore):** Private keys are generated using `KeyGenParameterSpec` with curve `secp256r1` and stored in hardware TEE / StrongBox. Keys are explicitly non-exportable (`privateKey.encoded == null`).
-2. **Standard Cryptographic Encoding:**
-   - Public Keys: 91 bytes raw binary X.509 `SubjectPublicKeyInfo` DER (124 Base64 characters).
-   - Signatures: Standard ASN.1 DER `SEQUENCE { r INTEGER, s INTEGER }`, typically 70–72 bytes binary (96 Base64 characters).
-3. **Adaptive Biometric & Credential Signing:** Enforces `BIOMETRIC_STRONG` (Class 3) or `DEVICE_CREDENTIAL` (PIN/pattern/password). Weak Class 2 face recognition is strictly excluded from keystore crypto operations.
-4. **Anti QR-Jacking Protection (SEC-02):** The browser session secret token (`token_hash`) is never encoded into the QR code or transmitted to the mobile phone. Only the initiating browser can retrieve the session access token.
-5. **Pessimistic Row-Level Locking (SEC-01):** Challenge consumption in PostgreSQL uses `SELECT ... FOR UPDATE` to guarantee single-use nonce consumption.
-6. **Origin Binding (SEC-03):** Authentication sessions are cryptographically bound to verified origins (e.g. `http://localhost:5173`).
-7. **One-Time Enrollment Enforcement:** Backend rejects duplicate enrollments with HTTP 409 `DEVICE_ALREADY_REGISTERED`, preventing silent key replacement or race conditions.
-8. **M3 Secure Notes Zero-Knowledge Storage:** Secure Notes are encrypted client-side using HKDF-SHA256 derived keys and AES-256-GCM. The database stores ciphertext only; notes are strictly isolated by `owner_id` mapped to the verified `device_id`.
-9. **M3 Digital Asset Vault AEAD Isolation:** Digital assets are encrypted using libsodium XChaCha20-Poly1305 with per-device HKDF-SHA256 keys and AAD context binding (`v1|device_id|asset_id`). Atomic filesystem writes (`.tmp` to permanent) prevent partial writes, and unauthorized cross-device decryption attempts fail-closed with HTTP 404/403.
-10. **Tamper-Evident Integrity Assurance (Planned M4 & M5):** Continuous SHA-256 asset monitoring and append-only audit hash chains ensure tamper-evident event histories, with optional public/consortium blockchain anchoring planned for M5 without ever placing plaintext assets or private keys on-chain.
+### Scope & Implementation Status
+* **Milestones M0–M4:** **Implemented, Verified, and Fully Documented** in this repository.
+* **Milestone 5 (Blockchain Audit Logging):** **Planned Future Roadmap, NOT Implemented.**
+* **Native Face Authentication (`BiometricPrompt`):** **Planned Future Proposal, NOT Implemented.**
+* **Production Status:** **Verified Engineering Evaluation / Pre-Release Build (`v1.0.0-m0-m4`).** This project is prepared for reproducible evaluation and testing in verified environments; no live production cloud deployment is claimed.
 
----
-
-## 21. Known Limitations & Architectural Boundaries
-
-1. **Milestone Boundary (Device-Level Identity):** Milestones 1–3 establish device-level hardware identity and cryptographic challenge-response authentication. Multi-tenant username/password user accounts (`users` table) are scheduled for Milestone 4/5.
-2. **Single Active Device Policy:** The current device registry supports binding one active authenticator key per client context. Key rollover and multi-device revocation lists are scheduled for M4.
-3. **Physical Device Network Routing:** Connecting a physical mobile device requires either an active `adb reverse tcp:8000 tcp:8000` tunnel or configuring `IPGUARD_API_URL` to point to a reachable LAN IP address.
-4. **Asset Upload In-Memory Buffering:** Digital asset upload currently enforces an in-memory buffer up to 50 MB (preventing memory exhaustion / DoS attacks); true multi-part streaming file uploads are planned for future optimization.
-5. **Original Format Decryption:** Digital assets are decrypted in ephemeral browser memory and downloaded in their original binary format; proprietary `.ipguard` encrypted container export is not implemented.
-6. **Asynchronous File Cleanup:** Unlinking deleted assets is executed synchronously during asset deletion; an asynchronous background worker for orphan-file sweeps remains a future maintenance enhancement.
+### Technical & Cryptographic Limitations
+1. **Spatial LSB Fragility:** Spatial LSB steganography is fragile by design. Resizing, cropping, filtering, or lossy re-compression (JPEG/WebP) will alter pixel bits and intentionally invalidate the Ed25519 signature and SHA-256 checksum. It is not robust watermarking.
+2. **Format Scope:** LSB steganography is strictly restricted to 8-bit truecolor RGB/RGBA PNG images.
+3. **Hardware Device Validation:** Automated regression testing utilizes cryptographic test fixtures; physical Android device acceptance requires manual QR scanning on physical hardware.
+4. **Legal Scope:** An Ed25519 digital signature establishes mathematical authenticity under the signing key; it does not constitute an independent legal copyright certificate without registered legal title.
+5. **Sample-Specific PSNR Metrics:** Peak Signal-to-Noise Ratio for embedded watermarks is **68.37 dB** on the 256x256 master test image (`master_artwork_256.png`), with baseline variations (~61.94 dB) depending on image dimensions and carrier bit density. Both values substantially exceed the universal human imperceptibility threshold ($> 40\text{ dB}$).
 
 ---
 
-## 22. Collaboration Guide
+## Future Roadmap
 
-Detailed instructions for repository collaborators, permission models, and candidate issue roadmaps for Milestone 4 and 5 are documented in [`docs/COLLABORATION_GUIDE.md`](docs/COLLABORATION_GUIDE.md).
+### Milestone 5 — Blockchain-Based Immutable Audit Logging (PLANNED)
+* **Merkle Tree Aggregation:** Periodic batching of `audit_events` into cryptographic Merkle Trees.
+* **Smart Contract Anchoring:** Publishing Merkle roots to public or consortium EVM blockchains (Ethereum, Polygon, or Arbitrum) for decentralized immutability.
+* **Public Verifier Portal:** Web tool allowing third parties to verify asset hashes against blockchain checkpoints without requiring server access.
 
----
-
-## 23. Contribution Guide
-
-We welcome contributions from invited team members! Please consult [`CONTRIBUTING.md`](CONTRIBUTING.md) for:
-- Branching strategy (`feature/m4-...`, `feature/m5-...`, `fix/...`).
-- Conventional Commit message formats.
-- Pull Request submission standards.
-- Zero-secrets verification rules.
+### Future Android Client Enhancements (PLANNED)
+* **Native BiometricPrompt Binding:** Class 3 biometrics gating Keystore key usage directly before signing.
+* **Remote Attestation:** Keymaster / Keymint certificate chain verification to validate hardware TEE integrity against Google servers.
 
 ---
 
-## 24. Security Reporting
+## Documentation Hub
 
-If you discover a potential security vulnerability within IPGuard, please consult [`SECURITY.md`](SECURITY.md) for our private disclosure process. **Do not create public GitHub issues for security vulnerabilities.**
+GitHub is the central documentation repository for IPGuard. Complete documentation can be navigated directly:
+
+* 📚 [**Central Documentation Index (`docs/README.md`)**](docs/README.md) — Master navigation catalog.
+
+### Core Architecture & Technical Specifications
+* 🏛️ [**System Architecture (`docs/SYSTEM_ARCHITECTURE.md`)**](docs/SYSTEM_ARCHITECTURE.md) — Component topology, technology stack, and directory structure.
+* 🔐 [**Security Architecture (`docs/SECURITY_ARCHITECTURE.md`)**](docs/SECURITY_ARCHITECTURE.md) — Threat model, cryptographic primitives, and `IPGW` binary framing.
+* 🔄 [**Data Flow Specifications (`docs/DATA_FLOW.md`)**](docs/DATA_FLOW.md) — Sequence flows for enrollment, QR auth, upload, embedding, and verification.
+* 📜 [**PNG Steganography Specification (`docs/png-lsb-steganography.md`)**](docs/png-lsb-steganography.md) — Byte-level `IPGW` framing layout.
+* ⛓️ [**Audit Hash Chain Architecture (`docs/audit-hash-chain-deployment.md`)**](docs/audit-hash-chain-deployment.md) — Linear non-repudiation ledger design.
+
+### Master Project Reports & Governance
+* 📋 [**Final Master Project Report (`docs/FINAL_PROJECT_REPORT.md`)**](docs/FINAL_PROJECT_REPORT.md) — 20-section formal audit report (Indonesian).
+* 🎯 [**Final Acceptance Matrix (`docs/FINAL_ACCEPTANCE_MATRIX.md`)**](docs/FINAL_ACCEPTANCE_MATRIX.md) — 26-feature verification matrix across M1–M4.
+* 🗂️ [**Final Evidence Index (`docs/FINAL_EVIDENCE_INDEX.md`)**](docs/FINAL_EVIDENCE_INDEX.md) — Index of all test scripts, outputs, and database migrations.
+* 🚀 [**Final Operational Handover (`docs/FINAL_HANDOVER.md`)**](docs/FINAL_HANDOVER.md) — Operator runbook and execution guides.
+* 🧊 [**Final Freeze Report (`docs/FINAL_FREEZE_REPORT.md`)**](docs/FINAL_FREEZE_REPORT.md) — Pre-freeze audit and verification report.
+* 🏷️ [**GitHub Release Report (`docs/FINAL_GITHUB_RELEASE_REPORT.md`)**](docs/FINAL_GITHUB_RELEASE_REPORT.md) — Release branch, tag, and PR #9 details.
+
+### Milestone Verification Reports
+* **M0:** [`docs/M0_TECHNICAL_FEASIBILITY.md`](docs/M0_TECHNICAL_FEASIBILITY.md) · [`docs/M0_COMPATIBILITY_REPORT.md`](docs/M0_COMPATIBILITY_REPORT.md)
+* **M1:** [`docs/M1_TEST_REPORT.md`](docs/M1_TEST_REPORT.md) · [`docs/DEVELOPMENT_SETUP.md`](docs/DEVELOPMENT_SETUP.md)
+* **M2:** [`docs/M2_MASTER_FINAL_AUDIT_REPORT.md`](docs/M2_MASTER_FINAL_AUDIT_REPORT.md) · [`docs/M2_ARCHITECTURE.md`](docs/M2_ARCHITECTURE.md) · [`docs/M2.3A_KEYSTORE_REPORT.md`](docs/M2.3A_KEYSTORE_REPORT.md) · [`docs/ONE_TIME_DEVICE_ENROLLMENT.md`](docs/ONE_TIME_DEVICE_ENROLLMENT.md)
+* **M3:** [`docs/M3_FINAL_SECURITY_REVIEW.md`](docs/M3_FINAL_SECURITY_REVIEW.md) · [`docs/M3_ASSET_VAULT_BROWSER_E2E_REPORT.md`](docs/M3_ASSET_VAULT_BROWSER_E2E_REPORT.md) · [`docs/M3_ALIZA_ASSET_VAULT_INTEGRATION.md`](docs/M3_ALIZA_ASSET_VAULT_INTEGRATION.md)
+* **M4:** [`docs/M4_FINAL_ACCEPTANCE_REPORT.md`](docs/M4_FINAL_ACCEPTANCE_REPORT.md) · [`docs/M4_BROWSER_ACCEPTANCE_REPORT.md`](docs/M4_BROWSER_ACCEPTANCE_REPORT.md) · [`docs/M4_BACKEND_TEST_REPORT.md`](docs/M4_BACKEND_TEST_REPORT.md) · [`docs/M4_FRONTEND_TEST_REPORT.md`](docs/M4_FRONTEND_TEST_REPORT.md)
+
+### Visual Evidence & Acceptance Screenshots
+* 🖼️ [**Browser Acceptance Screenshots Directory (`docs/screenshots/m4_acceptance/`)**](docs/screenshots/m4_acceptance/)
+* 📊 [**Machine-Readable Acceptance Results (`docs/screenshots/m4_acceptance/acceptance_results.json`)**](docs/screenshots/m4_acceptance/acceptance_results.json)
 
 ---
 
-## 25. License and Project Usage Information
+## License & Usage
 
-- **Repository Visibility:** `PRIVATE`.
-- **Status:** Proprietary / Pre-release research and development.
-- **Copyright & Rights:** All rights reserved by the project owner ([@Abhiprayaa29](https://github.com/Abhiprayaa29)). Unauthorized copying, distribution, or public publishing of this repository is strictly prohibited.
+Copyright © 2026 IPGuard Project. All rights reserved.  
+Proprietary academic and technical evaluation codebase.

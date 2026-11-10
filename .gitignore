@@ -54,6 +54,7 @@ ui_dump*.xml
 Progress*/
 scratch/
 tests_e2e_live*.py
+UI1*
 
 # Android / Gradle
 .gradle/
