@@ -1,6 +1,7 @@
 package com.ipguard.authenticator.ui.components
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -10,7 +11,6 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.systemBarsPadding
@@ -28,21 +28,28 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.StrokeCap
+import androidx.compose.ui.graphics.StrokeJoin
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.ipguard.authenticator.R
+import com.ipguard.authenticator.ui.theme.IPGuardCharcoal
 import com.ipguard.authenticator.ui.theme.IPGuardGold
-import com.ipguard.authenticator.ui.theme.IPGuardMist
-import com.ipguard.authenticator.ui.theme.IPGuardMistMuted
-import com.ipguard.authenticator.ui.theme.IPGuardNavy800
-import com.ipguard.authenticator.ui.theme.IPGuardNavy900
-import com.ipguard.authenticator.ui.theme.IPGuardNavy950
-import com.ipguard.authenticator.ui.theme.IPGuardOutline
-import com.ipguard.authenticator.ui.theme.IPGuardTeal
+import com.ipguard.authenticator.ui.theme.IPGuardGoldBright
+import com.ipguard.authenticator.ui.theme.IPGuardHairline
+import com.ipguard.authenticator.ui.theme.IPGuardObsidian
+import com.ipguard.authenticator.ui.theme.IPGuardPlatinum
+import com.ipguard.authenticator.ui.theme.IPGuardSlate
+import com.ipguard.authenticator.ui.theme.IPGuardSurfaceElevated
 
 @Composable
 fun AuthenticatorScreen(
@@ -51,6 +58,7 @@ fun AuthenticatorScreen(
     subtitle: String,
     modifier: Modifier = Modifier,
     onBack: (() -> Unit)? = null,
+    headerTrailing: (@Composable () -> Unit)? = null,
     content: @Composable ColumnScope.() -> Unit
 ) {
     Box(modifier = modifier.fillMaxSize()) {
@@ -62,36 +70,38 @@ fun AuthenticatorScreen(
         ) {
             AppTopBar(
                 onBack = onBack,
-                modifier = Modifier.padding(horizontal = 24.dp, vertical = 16.dp)
+                headerTrailing = headerTrailing,
+                modifier = Modifier.padding(horizontal = 20.dp, vertical = 14.dp)
             )
             Column(
                 modifier = Modifier
                     .weight(1f)
                     .fillMaxWidth()
                     .verticalScroll(rememberScrollState())
-                    .padding(horizontal = 24.dp)
+                    .padding(horizontal = 20.dp)
                     .padding(bottom = 32.dp)
             ) {
-                Spacer(Modifier.height(8.dp))
+                Spacer(Modifier.height(4.dp))
                 Text(
                     text = eyebrow,
                     style = MaterialTheme.typography.labelSmall,
-                    color = IPGuardTeal,
-                    letterSpacing = 1.8.sp
+                    color = IPGuardGoldBright,
+                    letterSpacing = 1.6.sp
                 )
-                Spacer(Modifier.height(10.dp))
+                Spacer(Modifier.height(8.dp))
                 Text(
                     text = title,
+                    modifier = Modifier.semantics { heading() },
                     style = MaterialTheme.typography.displaySmall,
-                    color = IPGuardMist
+                    color = IPGuardPlatinum
                 )
-                Spacer(Modifier.height(10.dp))
+                Spacer(Modifier.height(8.dp))
                 Text(
                     text = subtitle,
                     style = MaterialTheme.typography.bodyLarge,
-                    color = IPGuardMistMuted
+                    color = IPGuardSlate
                 )
-                Spacer(Modifier.height(28.dp))
+                Spacer(Modifier.height(24.dp))
                 content()
             }
         }
@@ -105,32 +115,21 @@ private fun AppBackground() {
             .fillMaxSize()
             .background(
                 Brush.verticalGradient(
-                    listOf(IPGuardNavy950, IPGuardNavy900, IPGuardNavy950)
+                    listOf(IPGuardObsidian, IPGuardCharcoal, IPGuardObsidian)
                 )
             )
     ) {
+        // Subtle radial ambient gold glint at top-right corner
         Box(
             modifier = Modifier
-                .align(Alignment.TopEnd)
-                .offset(x = 110.dp, y = (-130).dp)
-                .size(280.dp)
+                .fillMaxWidth()
+                .height(240.dp)
                 .background(
                     Brush.radialGradient(
-                        listOf(IPGuardTeal.copy(alpha = 0.13f), Color.Transparent)
-                    ),
-                    CircleShape
-                )
-        )
-        Box(
-            modifier = Modifier
-                .align(Alignment.BottomStart)
-                .offset(x = (-120).dp, y = 140.dp)
-                .size(300.dp)
-                .background(
-                    Brush.radialGradient(
-                        listOf(IPGuardGold.copy(alpha = 0.08f), Color.Transparent)
-                    ),
-                    CircleShape
+                        colors = listOf(IPGuardGold.copy(alpha = 0.06f), Color.Transparent),
+                        center = Offset(720f, 0f),
+                        radius = 700f
+                    )
                 )
         )
     }
@@ -139,6 +138,7 @@ private fun AppBackground() {
 @Composable
 private fun AppTopBar(
     onBack: (() -> Unit)?,
+    headerTrailing: (@Composable () -> Unit)?,
     modifier: Modifier = Modifier
 ) {
     Row(
@@ -148,11 +148,11 @@ private fun AppTopBar(
         if (onBack != null) {
             Surface(
                 onClick = onBack,
-                modifier = Modifier.size(40.dp),
+                modifier = Modifier.size(44.dp),
                 shape = CircleShape,
-                color = IPGuardNavy800.copy(alpha = 0.72f),
-                contentColor = IPGuardMist,
-                border = BorderStroke(1.dp, IPGuardOutline.copy(alpha = 0.8f))
+                color = IPGuardSurfaceElevated,
+                contentColor = IPGuardPlatinum,
+                border = BorderStroke(1.dp, IPGuardHairline)
             ) {
                 Box(contentAlignment = Alignment.Center) {
                     Icon(
@@ -166,7 +166,11 @@ private fun AppTopBar(
         }
         BrandWordmark()
         Spacer(Modifier.weight(1f))
-        PlatformPill()
+        if (headerTrailing != null) {
+            headerTrailing()
+        } else {
+            PlatformPill()
+        }
     }
 }
 
@@ -174,20 +178,17 @@ private fun AppTopBar(
 private fun BrandWordmark() {
     Row(verticalAlignment = Alignment.CenterVertically) {
         Surface(
-            shape = RoundedCornerShape(14.dp),
-            color = IPGuardTeal.copy(alpha = 0.12f),
-            border = BorderStroke(1.dp, IPGuardTeal.copy(alpha = 0.36f))
+            shape = RoundedCornerShape(12.dp),
+            color = IPGuardGold.copy(alpha = 0.1f),
+            border = BorderStroke(1.dp, IPGuardGold.copy(alpha = 0.4f))
         ) {
             Box(
-                modifier = Modifier.size(40.dp),
+                modifier = Modifier.size(38.dp),
                 contentAlignment = Alignment.Center
             ) {
-                Text(
-                    text = stringResource(R.string.brand_mark),
-                    color = IPGuardTeal,
-                    style = MaterialTheme.typography.labelLarge,
-                    fontWeight = FontWeight.Bold,
-                    letterSpacing = 1.sp
+                ShieldCrestIcon(
+                    tint = IPGuardGoldBright,
+                    modifier = Modifier.size(20.dp)
                 )
             }
         }
@@ -196,34 +197,84 @@ private fun BrandWordmark() {
             Text(
                 text = stringResource(R.string.brand_name),
                 style = MaterialTheme.typography.labelLarge,
-                color = IPGuardMist,
-                letterSpacing = 2.sp
+                color = IPGuardPlatinum,
+                fontWeight = FontWeight.Bold,
+                letterSpacing = 1.8.sp
             )
             Text(
                 text = stringResource(R.string.brand_product),
                 style = MaterialTheme.typography.labelSmall,
-                color = IPGuardMistMuted,
+                color = IPGuardGoldMutedText(),
                 fontSize = 9.sp,
-                letterSpacing = 1.8.sp
+                letterSpacing = 1.6.sp
             )
         }
     }
 }
 
 @Composable
+private fun IPGuardGoldMutedText(): Color = IPGuardGold.copy(alpha = 0.85f)
+
+@Composable
 private fun PlatformPill() {
     Surface(
         shape = RoundedCornerShape(100),
-        color = Color.Transparent,
-        border = BorderStroke(1.dp, IPGuardGold.copy(alpha = 0.5f))
+        color = IPGuardSurfaceElevated,
+        border = BorderStroke(1.dp, IPGuardGold.copy(alpha = 0.36f))
     ) {
         Text(
             text = stringResource(R.string.platform_badge),
-            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
             style = MaterialTheme.typography.labelSmall,
-            color = IPGuardGold,
+            color = IPGuardGoldBright,
             fontSize = 9.sp,
-            letterSpacing = 1.3.sp
+            letterSpacing = 1.2.sp
+        )
+    }
+}
+
+@Composable
+fun ShieldCrestIcon(
+    tint: Color,
+    modifier: Modifier = Modifier
+) {
+    Canvas(modifier = modifier) {
+        val w = size.width
+        val h = size.height
+        val shield = Path().apply {
+            moveTo(w * 0.50f, h * 0.08f)
+            lineTo(w * 0.86f, h * 0.22f)
+            lineTo(w * 0.86f, h * 0.50f)
+            cubicTo(
+                w * 0.86f, h * 0.72f,
+                w * 0.68f, h * 0.86f,
+                w * 0.50f, h * 0.94f
+            )
+            cubicTo(
+                w * 0.32f, h * 0.86f,
+                w * 0.14f, h * 0.72f,
+                w * 0.14f, h * 0.50f
+            )
+            lineTo(w * 0.14f, h * 0.22f)
+            close()
+        }
+        drawPath(
+            path = shield,
+            color = tint,
+            style = Stroke(width = 1.8.dp.toPx(), cap = StrokeCap.Round, join = StrokeJoin.Round)
+        )
+        drawCircle(
+            color = tint,
+            radius = w * 0.11f,
+            center = Offset(w * 0.50f, h * 0.47f),
+            style = Stroke(width = 1.6.dp.toPx())
+        )
+        drawLine(
+            color = tint,
+            start = Offset(w * 0.50f, h * 0.58f),
+            end = Offset(w * 0.50f, h * 0.71f),
+            strokeWidth = 1.6.dp.toPx(),
+            cap = StrokeCap.Round
         )
     }
 }

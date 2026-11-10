@@ -7,16 +7,18 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.ipguard.authenticator.R
+import com.ipguard.authenticator.ui.components.AppPill
 import com.ipguard.authenticator.ui.components.AuthenticatorScreen
 import com.ipguard.authenticator.ui.components.InformationCard
 import com.ipguard.authenticator.ui.components.KeyValueRow
 import com.ipguard.authenticator.ui.components.NoticeCard
 import com.ipguard.authenticator.ui.components.NoticeTone
+import com.ipguard.authenticator.ui.components.PillTone
 import com.ipguard.authenticator.ui.components.ScreenActions
 import com.ipguard.authenticator.ui.components.SectionTitle
 import com.ipguard.authenticator.ui.state.AuthenticatorUiState
-import com.ipguard.authenticator.ui.theme.IPGuardGold
-import com.ipguard.authenticator.ui.theme.IPGuardTeal
+import com.ipguard.authenticator.ui.theme.IPGuardGoldBright
+import com.ipguard.authenticator.ui.theme.IPGuardVerified
 
 @Composable
 fun SecuritySettingsScreen(
@@ -30,33 +32,44 @@ fun SecuritySettingsScreen(
     val keyState = uiState.keyDiagnostic
 
     AuthenticatorScreen(
-        eyebrow = stringResource(R.string.settings_eyebrow),
-        title = stringResource(R.string.settings_title),
-        subtitle = stringResource(R.string.settings_subtitle),
+        eyebrow = "SECURITY & ABOUT",
+        title = "Security & about IPGuard",
+        subtitle = "Review hardware authorization policies, native biometric integration, privacy guarantees, and build metadata.",
         modifier = modifier,
         onBack = onBack
     ) {
+        AppPill(
+            text = "HARDENED KEYSTORE ARCHITECTURE",
+            tone = PillTone.GOLD
+        )
+        Spacer(Modifier.height(16.dp))
+
         InformationCard {
             SectionTitle(text = stringResource(R.string.settings_policy_title))
             Spacer(Modifier.height(8.dp))
             KeyValueRow(
                 label = stringResource(R.string.settings_primary_auth_label),
                 value = authPolicy.primaryAuthMethod,
-                valueColor = IPGuardTeal
+                valueColor = IPGuardGoldBright
+            )
+            KeyValueRow(
+                label = "Native Face Gate",
+                value = "AndroidX BiometricPrompt (BIOMETRIC_WEAK)",
+                valueColor = IPGuardVerified
+            )
+            KeyValueRow(
+                label = "Face Gate status",
+                value = uiState.faceGate.availabilityLabel,
+                valueColor = if (uiState.faceGate.isWeakBiometricAvailable) IPGuardVerified else IPGuardGoldBright
             )
             KeyValueRow(
                 label = stringResource(R.string.settings_biometric_route_label),
-                value = authPolicy.biometricStatus,
-                valueColor = IPGuardGold
+                value = authPolicy.biometricStatus
             )
             KeyValueRow(
                 label = stringResource(R.string.settings_credential_route_label),
                 value = authPolicy.credentialStatus,
-                valueColor = IPGuardTeal
-            )
-            KeyValueRow(
-                label = stringResource(R.string.settings_face_gate_label),
-                value = stringResource(R.string.settings_face_gate_value),
+                valueColor = IPGuardVerified,
                 showDivider = false
             )
         }
@@ -66,18 +79,14 @@ fun SecuritySettingsScreen(
             SectionTitle(text = stringResource(R.string.settings_authorization_title))
             Spacer(Modifier.height(8.dp))
             KeyValueRow(
-                label = stringResource(R.string.settings_method_label),
-                value = authPolicy.primaryAuthMethod,
-                valueColor = IPGuardTeal
+                label = "Signing algorithm",
+                value = "ECDSA P-256 (secp256r1)",
+                monospaceValue = true
             )
             KeyValueRow(
                 label = stringResource(R.string.settings_key_label),
-                value = if (keyState.hasKey) {
-                    stringResource(R.string.settings_key_available_value)
-                } else {
-                    stringResource(R.string.settings_key_value)
-                },
-                valueColor = IPGuardTeal
+                value = if (keyState.hasKey) "Created (Non-Exportable)" else "Not created",
+                valueColor = if (keyState.hasKey) IPGuardVerified else IPGuardGoldBright
             )
             KeyValueRow(
                 label = stringResource(R.string.settings_invalidation_label),
@@ -92,52 +101,65 @@ fun SecuritySettingsScreen(
 
         Spacer(Modifier.height(14.dp))
         InformationCard {
-            SectionTitle(text = stringResource(R.string.settings_recovery_title))
+            SectionTitle(text = stringResource(R.string.settings_privacy_title))
             Spacer(Modifier.height(8.dp))
             KeyValueRow(
-                label = stringResource(R.string.settings_codes_label),
-                value = stringResource(R.string.settings_codes_value)
+                label = "Camera & face frames stored",
+                value = "Never",
+                valueColor = IPGuardVerified
             )
             KeyValueRow(
-                label = stringResource(R.string.settings_replacement_label),
-                value = stringResource(R.string.settings_replacement_value)
+                label = stringResource(R.string.settings_qr_label),
+                value = "Never",
+                valueColor = IPGuardVerified
             )
             KeyValueRow(
-                label = stringResource(R.string.settings_revoke_label),
-                value = stringResource(R.string.settings_revoke_value),
+                label = "Private keys or tokens shown/logged",
+                value = "Never",
+                valueColor = IPGuardVerified,
                 showDivider = false
             )
         }
 
         Spacer(Modifier.height(14.dp))
         InformationCard {
-            SectionTitle(text = stringResource(R.string.settings_privacy_title))
+            SectionTitle(text = "ABOUT IPGUARD")
             Spacer(Modifier.height(8.dp))
             KeyValueRow(
-                label = stringResource(R.string.settings_frames_label),
-                value = stringResource(R.string.settings_frames_value)
+                label = "Application",
+                value = "IPGuard Authenticator"
             )
             KeyValueRow(
-                label = stringResource(R.string.settings_qr_label),
-                value = stringResource(R.string.settings_qr_value)
+                label = "Application ID",
+                value = uiState.deviceFacts.applicationId,
+                monospaceValue = true
             )
             KeyValueRow(
-                label = stringResource(R.string.settings_logs_label),
-                value = stringResource(R.string.settings_logs_value),
+                label = "Version & Build",
+                value = "v${uiState.deviceFacts.appVersion}",
+                monospaceValue = true
+            )
+            KeyValueRow(
+                label = "Device hardware",
+                value = uiState.deviceFacts.model
+            )
+            KeyValueRow(
+                label = "Operating system",
+                value = "Android ${uiState.deviceFacts.androidVersion}",
                 showDivider = false
             )
         }
 
         Spacer(Modifier.height(14.dp))
         NoticeCard(
-            text = authPolicy.policyExplanation,
+            text = "Security notice: Android BiometricPrompt BIOMETRIC_WEAK enforces OS-level face/weak biometrics where enrolled, while cryptographic signing remains bound to Android Keystore CryptoObject (BIOMETRIC_STRONG or DEVICE_CREDENTIAL).",
             tone = NoticeTone.INFO
         )
-        Spacer(Modifier.height(24.dp))
+        Spacer(Modifier.height(22.dp))
         ScreenActions(
-            primaryLabel = stringResource(R.string.settings_primary_action),
+            primaryLabel = "Device & Key Lifecycle",
             onPrimary = onDeviceInformation,
-            secondaryLabel = stringResource(R.string.settings_secondary_action),
+            secondaryLabel = "Back to Dashboard",
             onSecondary = onHome
         )
     }

@@ -13,6 +13,8 @@ import androidx.compose.ui.unit.dp
 import com.ipguard.authenticator.R
 import com.ipguard.authenticator.security.qr.QrSessionType
 import com.ipguard.authenticator.ui.components.AppPill
+import com.ipguard.authenticator.ui.components.AuthPipelineStep
+import com.ipguard.authenticator.ui.components.AuthPipelineStepper
 import com.ipguard.authenticator.ui.components.AuthenticatorScreen
 import com.ipguard.authenticator.ui.components.InformationCard
 import com.ipguard.authenticator.ui.components.KeyValueRow
@@ -22,10 +24,14 @@ import com.ipguard.authenticator.ui.components.OutcomeSeal
 import com.ipguard.authenticator.ui.components.PillTone
 import com.ipguard.authenticator.ui.components.ScreenActions
 import com.ipguard.authenticator.ui.components.SectionTitle
+import com.ipguard.authenticator.ui.components.StepStatus
 import com.ipguard.authenticator.ui.state.ActiveAuthSessionState
 import com.ipguard.authenticator.ui.state.AuthFlowStep
 import com.ipguard.authenticator.ui.state.PreviewResult
 import com.ipguard.authenticator.ui.state.SigningDiagnosticState
+import com.ipguard.authenticator.ui.theme.IPGuardDanger
+import com.ipguard.authenticator.ui.theme.IPGuardGoldBright
+import com.ipguard.authenticator.ui.theme.IPGuardVerified
 
 @Composable
 fun ResultScreen(
@@ -49,7 +55,7 @@ fun ResultScreen(
         PreviewResult.SCAN_COMPLETE -> stringResource(R.string.result_eyebrow_scan)
         PreviewResult.REJECTED -> stringResource(R.string.result_eyebrow_rejected)
         PreviewResult.APPROVED -> if (isBackendApproved) {
-            if (isEnrollment) "DEVICE REGISTERED" else "AUTHENTICATION APPROVED"
+            if (isEnrollment) "STEP 05 · ENROLLED" else "STEP 05 · VERIFIED"
         } else if (hasVerifiedLocalSignature) {
             stringResource(R.string.result_eyebrow_local_signed)
         } else {
@@ -60,7 +66,7 @@ fun ResultScreen(
         PreviewResult.SCAN_COMPLETE -> stringResource(R.string.result_title_scan)
         PreviewResult.REJECTED -> stringResource(R.string.result_title_rejected)
         PreviewResult.APPROVED -> if (isBackendApproved) {
-            if (isEnrollment) "Device enrolled successfully" else "Sign-in approved successfully"
+            if (isEnrollment) "Device enrolled" else "Authentication verified"
         } else if (hasVerifiedLocalSignature) {
             stringResource(R.string.result_title_local_signed)
         } else {
@@ -69,12 +75,12 @@ fun ResultScreen(
     }
     val subtitle = when (outcome) {
         PreviewResult.SCAN_COMPLETE -> stringResource(R.string.result_subtitle_scan)
-        PreviewResult.REJECTED -> stringResource(R.string.result_subtitle_rejected)
+        PreviewResult.REJECTED -> "The request did not complete authorization. No valid session token was issued."
         PreviewResult.APPROVED -> if (isBackendApproved) {
             if (isEnrollment) {
-                "This device is now trusted by IPGuard backend. Future web sign-in requests can be verified here."
+                "Face Gate passed and Keystore ECDSA P-256 key was registered with IPGuard backend."
             } else {
-                "ECDSA signature verified by backend. Web console session has been authorized."
+                "Face Gate passed, ECDSA P-256 signature was verified by backend, and your browser session is authorized."
             }
         } else if (hasVerifiedLocalSignature) {
             stringResource(R.string.result_subtitle_local_signed)
@@ -83,30 +89,58 @@ fun ResultScreen(
         }
     }
     val badge = when {
-        outcome != PreviewResult.APPROVED -> stringResource(R.string.result_badge)
+        outcome != PreviewResult.APPROVED -> if (outcome == PreviewResult.REJECTED) "REJECTED / CLOSED" else stringResource(R.string.result_badge)
         hasVerifiedLocalSignature -> if (isBackendApproved) "BACKEND VERIFIED" else stringResource(R.string.result_badge_local_signed)
         else -> stringResource(R.string.result_badge_not_verified)
     }
     val badgeTone = when {
+        outcome == PreviewResult.REJECTED -> PillTone.DANGER
         outcome != PreviewResult.APPROVED -> PillTone.GOLD
-        hasVerifiedLocalSignature -> PillTone.TEAL
+        isBackendApproved -> PillTone.VERIFIED
+        hasVerifiedLocalSignature -> PillTone.GOLD
         else -> PillTone.DANGER
     }
-    val noticeText = when {
-        isBackendApproved -> if (isEnrollment) {
-            "Device key successfully registered in backend PostgreSQL database. This phone is now bound to your account."
-        } else {
-            "Single-use authentication challenge consumed and verified by backend. The browser session is active."
-        }
-        hasVerifiedLocalSignature -> stringResource(R.string.result_notice_local_signed)
-        isApproved -> stringResource(R.string.result_notice_not_verified)
-        else -> stringResource(R.string.result_notice)
-    }
-    val noticeTone = if (isApproved && !hasVerifiedLocalSignature) {
-        NoticeTone.WARNING
-    } else {
-        NoticeTone.INFO
-    }
+
+    val pipelineSteps = listOf(
+        AuthPipelineStep(
+            stepCode = "STEP 01",
+            title = "QR Challenge Detected",
+            detail = if (outcome == PreviewResult.REJECTED && activeSession.payload == null) "Rejected or invalid QR payload" else "Challenge parsed and validated",
+            status = if (outcome == PreviewResult.REJECTED && activeSession.payload == null) StepStatus.FAILED else StepStatus.COMPLETED
+        ),
+        AuthPipelineStep(
+            stepCode = "STEP 02",
+            title = "Face Authentication",
+            detail = if (hasVerifiedLocalSignature) "Biometric Authentication Successful" else "Not completed or cancelled",
+            status = if (hasVerifiedLocalSignature) StepStatus.COMPLETED else StepStatus.FAILED
+        ),
+        AuthPipelineStep(
+            stepCode = "STEP 03",
+            title = "Keystore Authorization",
+            detail = if (hasVerifiedLocalSignature) signingDiagnostic.authMethodLabel else "Authorization withheld",
+            status = if (hasVerifiedLocalSignature) StepStatus.COMPLETED else StepStatus.FAILED
+        ),
+        AuthPipelineStep(
+            stepCode = "STEP 04",
+            title = "Cryptographic Signing",
+            detail = if (hasVerifiedLocalSignature) "ECDSA P-256 signature created" else "No signature generated",
+            status = if (hasVerifiedLocalSignature) StepStatus.COMPLETED else StepStatus.FAILED
+        ),
+        AuthPipelineStep(
+            stepCode = "STEP 05",
+            title = "Authentication Verified",
+            detail = when {
+                isBackendApproved -> if (isEnrollment) "Device registered (201 Created)" else "Session approved (200 OK)"
+                hasVerifiedLocalSignature -> "Local verification only"
+                else -> "Session not authorized"
+            },
+            status = when {
+                isBackendApproved -> StepStatus.COMPLETED
+                hasVerifiedLocalSignature -> StepStatus.PENDING
+                else -> StepStatus.FAILED
+            }
+        )
+    )
 
     BackHandler(onBack = onHome)
 
@@ -117,11 +151,9 @@ fun ResultScreen(
         modifier = modifier,
         onBack = onHome
     ) {
-        AppPill(
-            text = badge,
-            tone = badgeTone
-        )
-        Spacer(Modifier.height(22.dp))
+        AppPill(text = badge, tone = badgeTone)
+        Spacer(Modifier.height(18.dp))
+
         Box(
             modifier = Modifier.fillMaxWidth(),
             contentAlignment = Alignment.Center
@@ -134,90 +166,61 @@ fun ResultScreen(
                 }
             )
         }
-        Spacer(Modifier.height(22.dp))
+        Spacer(Modifier.height(18.dp))
+
+        AuthPipelineStepper(steps = pipelineSteps)
+        Spacer(Modifier.height(14.dp))
 
         InformationCard {
-            SectionTitle(text = stringResource(R.string.result_state_title))
+            SectionTitle(text = "CRYPTOGRAPHIC RECEIPT")
             Spacer(Modifier.height(8.dp))
             if (isApproved && hasVerifiedLocalSignature) {
                 KeyValueRow(
-                    label = stringResource(R.string.result_approval_decision_label),
-                    value = stringResource(R.string.result_approval_decision_approved_local)
-                )
-                KeyValueRow(
-                    label = stringResource(R.string.result_auth_label),
-                    value = stringResource(R.string.result_yes_local_auth_value)
+                    label = "Authorization method",
+                    value = signingDiagnostic.authMethodLabel.ifBlank { "Device Authentication" },
+                    valueColor = IPGuardGoldBright
                 )
                 KeyValueRow(
                     label = stringResource(R.string.result_key_label),
-                    value = stringResource(R.string.result_yes_keystore_value)
-                )
-                KeyValueRow(
-                    label = stringResource(R.string.result_signature_created_label),
-                    value = stringResource(R.string.result_signature_created_value)
+                    value = "Android Keystore (ECDSA P-256)",
+                    valueColor = IPGuardVerified
                 )
                 KeyValueRow(
                     label = stringResource(R.string.result_local_verification_label),
-                    value = stringResource(R.string.result_verified_value)
+                    value = stringResource(R.string.result_verified_value),
+                    valueColor = IPGuardVerified
                 )
                 KeyValueRow(
                     label = stringResource(R.string.result_backend_label),
                     value = if (isBackendApproved) {
-                        "Verified & Accepted (200 OK)"
+                        if (isEnrollment) "Registered (HTTP 201)" else "Verified (HTTP 200)"
                     } else {
-                        stringResource(R.string.result_not_implemented_value)
-                    }
+                        "Local Preview Only"
+                    },
+                    valueColor = if (isBackendApproved) IPGuardVerified else IPGuardGoldBright,
+                    monospaceValue = true
                 )
                 KeyValueRow(
                     label = stringResource(R.string.result_session_creation_label),
                     value = if (isBackendApproved) {
-                        if (isEnrollment) "Device Registered" else "Session Authorized"
+                        if (isEnrollment) "Device Active" else "Browser Session Unlocked"
                     } else {
                         stringResource(R.string.result_not_created_value)
                     },
                     showDivider = false
                 )
-            } else if (isApproved) {
-                KeyValueRow(
-                    label = stringResource(R.string.result_approval_decision_label),
-                    value = stringResource(R.string.result_approval_decision_incomplete)
-                )
+            } else {
                 KeyValueRow(
                     label = stringResource(R.string.result_auth_label),
-                    value = stringResource(R.string.result_no_value)
+                    value = stringResource(R.string.result_no_value),
+                    valueColor = IPGuardDanger
                 )
                 KeyValueRow(
                     label = stringResource(R.string.result_key_label),
-                    value = stringResource(R.string.result_no_value)
-                )
-                KeyValueRow(
-                    label = stringResource(R.string.result_signature_created_label),
-                    value = stringResource(R.string.result_not_created_value)
-                )
-                KeyValueRow(
-                    label = stringResource(R.string.result_local_verification_label),
-                    value = stringResource(R.string.result_not_performed_value)
-                )
-                KeyValueRow(
-                    label = stringResource(R.string.result_backend_label),
                     value = stringResource(R.string.result_no_value)
                 )
                 KeyValueRow(
                     label = stringResource(R.string.result_session_creation_label),
-                    value = stringResource(R.string.result_no_value),
-                    showDivider = false
-                )
-            } else {
-                KeyValueRow(
-                    label = stringResource(R.string.result_auth_label),
-                    value = stringResource(R.string.result_no_value)
-                )
-                KeyValueRow(
-                    label = stringResource(R.string.result_key_label),
-                    value = stringResource(R.string.result_no_value)
-                )
-                KeyValueRow(
-                    label = stringResource(R.string.result_session_label),
                     value = stringResource(R.string.result_no_value),
                     showDivider = false
                 )
@@ -225,27 +228,42 @@ fun ResultScreen(
         }
 
         if (activeSession.errorMessage != null) {
-            Spacer(Modifier.height(14.dp))
+            Spacer(Modifier.height(12.dp))
             NoticeCard(
                 text = activeSession.errorMessage,
-                tone = NoticeTone.WARNING
+                tone = NoticeTone.DANGER
             )
         }
 
-        Spacer(Modifier.height(14.dp))
+        Spacer(Modifier.height(12.dp))
         NoticeCard(
-            text = noticeText,
-            tone = noticeTone
+            text = when {
+                isBackendApproved && isEnrollment ->
+                    "One-time enrollment is complete. Future authentication requests use Sign-In mode only."
+                isBackendApproved ->
+                    "Single-use challenge consumed and verified by IPGuard backend."
+                hasVerifiedLocalSignature ->
+                    stringResource(R.string.result_notice_local_signed)
+                isApproved ->
+                    stringResource(R.string.result_notice_not_verified)
+                else ->
+                    "Fail-closed guarantee: cancelled or rejected attempts leave no active authorization."
+            },
+            tone = when {
+                isBackendApproved -> NoticeTone.SUCCESS
+                isApproved && !hasVerifiedLocalSignature -> NoticeTone.WARNING
+                else -> NoticeTone.INFO
+            }
         )
 
-        Spacer(Modifier.height(24.dp))
+        Spacer(Modifier.height(22.dp))
         ScreenActions(
-            primaryLabel = stringResource(R.string.result_primary_action),
+            primaryLabel = "Return to Dashboard",
             onPrimary = onHome,
-            secondaryLabel = stringResource(R.string.result_secondary_action),
+            secondaryLabel = "Device Security Status",
             onSecondary = onDeviceDetails,
-            tertiaryLabel = stringResource(R.string.result_tertiary_action),
-            onTertiary = onReviewAnother
+            tertiaryLabel = if (isApproved && isBackendApproved) null else stringResource(R.string.result_tertiary_action),
+            onTertiary = if (isApproved && isBackendApproved) null else onReviewAnother
         )
     }
 }

@@ -11,6 +11,7 @@ sealed class AppDestination(val route: String) {
     data object Approval : AppDestination("approval")
     data object DeviceInformation : AppDestination("device_information")
     data object SecuritySettings : AppDestination("security_settings")
+    data object AssetVault : AppDestination("asset_vault")
 
     data object Result : AppDestination("result/{outcome}") {
         const val OUTCOME_ARG = "outcome"
