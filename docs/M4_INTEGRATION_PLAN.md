@@ -14,8 +14,8 @@
 Integrasi Milestone 4 Steganography dari `Progress Ali 2` ke repositori utama `D:\Projects\IPGuard` telah **berhasil dilaksanakan** pada branch dedicated `feature/m4-steganography-backend`.
 
 Seluruh komponen fungsional yang direncanakan telah dipindahkan dan diverifikasi:
-- **PNG LSB Core Engine & Ed25519 Signing:** Preservasi penuh algoritma Ali ([`app/services/png_steganography.py`](file:///D:/Projects/IPGuard/backend/app/services/png_steganography.py)).
-- **Orkestrasi Asset Vault:** Integrasi derivatif bertanda tangan dengan enkripsi XChaCha20-Poly1305 ([`app/services/steganography.py`](file:///D:/Projects/IPGuard/backend/app/services/steganography.py)).
+- **PNG LSB Core Engine & Ed25519 Signing:** Preservasi penuh algoritma Ali ([`app/services/png_steganography.py`](../backend/app/services/png_steganography.py)).
+- **Orkestrasi Asset Vault:** Integrasi derivatif bertanda tangan dengan enkripsi XChaCha20-Poly1305 ([`app/services/steganography.py`](../backend/app/services/steganography.py)).
 - **Append-Only Audit Hash Chain:** Modul `audit_chain.py` dan model `audit.py`.
 - **Integritas Aset (Periodic SHA-256 Monitoring):** Modul `asset_integrity.py` dan worker `app/workers/integrity.py`.
 - **Alembic Migration Chain:** Verifikasi suksesi migrasi `0006` $\rightarrow$ `0007` $\rightarrow$ `0008` $\rightarrow$ `0009_png_lsb_derivatives (head)`.

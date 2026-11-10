@@ -137,7 +137,7 @@ flowchart TD
 
 | Domain | Technologies |
 | :--- | :--- |
-| **Frontend Web Console** | React 19.3, Vite 8.3, TypeScript 7.0, Tailwind CSS 4.3, Lucide React, Axios |
+| **Frontend Web Console** | React 19.3.1, Vite 8.3.6, TypeScript 7.0.2, Tailwind CSS 4.3.4, Lucide React, Axios |
 | **Backend Core API** | Python 3.13.2, FastAPI 0.115, Starlette, Uvicorn, Pydantic v2 |
 | **Database & Migrations**| PostgreSQL 17.11, SQLAlchemy 2.0, Psycopg 3, Alembic (Migrations 0001–0009) |
 | **Cryptographic Suite** | PyCA/Cryptography (Ed25519, XChaCha20-Poly1305, HKDF, SHA-256, ECDSA NIST P-256) |
@@ -296,13 +296,20 @@ python ../scripts/m4_browser_acceptance_test.py
 
 ---
 
-## Known Limitations
+## Implementation Boundaries & Known Limitations
 
+### Scope & Implementation Status
+* **Milestones M0–M4:** **Implemented, Verified, and Fully Documented** in this repository.
+* **Milestone 5 (Blockchain Audit Logging):** **Planned Future Roadmap, NOT Implemented.**
+* **Native Face Authentication (`BiometricPrompt`):** **Planned Future Proposal, NOT Implemented.**
+* **Production Status:** **Verified Engineering Evaluation / Pre-Release Build (`v1.0.0-m0-m4`).** This project is prepared for reproducible evaluation and testing in verified environments; no live production cloud deployment is claimed.
+
+### Technical & Cryptographic Limitations
 1. **Spatial LSB Fragility:** Spatial LSB steganography is fragile by design. Resizing, cropping, filtering, or lossy re-compression (JPEG/WebP) will alter pixel bits and intentionally invalidate the Ed25519 signature and SHA-256 checksum. It is not robust watermarking.
 2. **Format Scope:** LSB steganography is strictly restricted to 8-bit truecolor RGB/RGBA PNG images.
 3. **Hardware Device Validation:** Automated regression testing utilizes cryptographic test fixtures; physical Android device acceptance requires manual QR scanning on physical hardware.
 4. **Legal Scope:** An Ed25519 digital signature establishes mathematical authenticity under the signing key; it does not constitute an independent legal copyright certificate without registered legal title.
-5. **Native Face Authentication:** Biometric verification via Android `BiometricPrompt` is documented as a planned future proposal (`PLANNED`).
+5. **Sample-Specific PSNR Metrics:** Peak Signal-to-Noise Ratio for embedded watermarks is **68.37 dB** on the 256x256 master test image (`master_artwork_256.png`), with baseline variations (~61.94 dB) depending on image dimensions and carrier bit density. Both values substantially exceed the universal human imperceptibility threshold ($> 40\text{ dB}$).
 
 ---
 
@@ -319,15 +326,37 @@ python ../scripts/m4_browser_acceptance_test.py
 
 ---
 
-## Project Documentation Links
+## Documentation Hub
 
-For in-depth architectural, test, and operational details, refer to:
-* [`docs/FINAL_PROJECT_REPORT.md`](docs/FINAL_PROJECT_REPORT.md) — Comprehensive master report (Formal Indonesian).
-* [`docs/FINAL_ACCEPTANCE_MATRIX.md`](docs/FINAL_ACCEPTANCE_MATRIX.md) — Feature status matrix across M1–M4.
-* [`docs/FINAL_EVIDENCE_INDEX.md`](docs/FINAL_EVIDENCE_INDEX.md) — Navigable evidence and test artifact index.
-* [`docs/FINAL_HANDOVER.md`](docs/FINAL_HANDOVER.md) — Operational handover and deployment guide.
-* [`docs/M4_BROWSER_ACCEPTANCE_REPORT.md`](docs/M4_BROWSER_ACCEPTANCE_REPORT.md) — Real browser test logs and metrics.
-* [`docs/png-lsb-steganography.md`](docs/png-lsb-steganography.md) — Byte-level `IPGW` framing specification.
+GitHub is the central documentation repository for IPGuard. Complete documentation can be navigated directly:
+
+* 📚 [**Central Documentation Index (`docs/README.md`)**](docs/README.md) — Master navigation catalog.
+
+### Core Architecture & Technical Specifications
+* 🏛️ [**System Architecture (`docs/SYSTEM_ARCHITECTURE.md`)**](docs/SYSTEM_ARCHITECTURE.md) — Component topology, technology stack, and directory structure.
+* 🔐 [**Security Architecture (`docs/SECURITY_ARCHITECTURE.md`)**](docs/SECURITY_ARCHITECTURE.md) — Threat model, cryptographic primitives, and `IPGW` binary framing.
+* 🔄 [**Data Flow Specifications (`docs/DATA_FLOW.md`)**](docs/DATA_FLOW.md) — Sequence flows for enrollment, QR auth, upload, embedding, and verification.
+* 📜 [**PNG Steganography Specification (`docs/png-lsb-steganography.md`)**](docs/png-lsb-steganography.md) — Byte-level `IPGW` framing layout.
+* ⛓️ [**Audit Hash Chain Architecture (`docs/audit-hash-chain-deployment.md`)**](docs/audit-hash-chain-deployment.md) — Linear non-repudiation ledger design.
+
+### Master Project Reports & Governance
+* 📋 [**Final Master Project Report (`docs/FINAL_PROJECT_REPORT.md`)**](docs/FINAL_PROJECT_REPORT.md) — 20-section formal audit report (Indonesian).
+* 🎯 [**Final Acceptance Matrix (`docs/FINAL_ACCEPTANCE_MATRIX.md`)**](docs/FINAL_ACCEPTANCE_MATRIX.md) — 26-feature verification matrix across M1–M4.
+* 🗂️ [**Final Evidence Index (`docs/FINAL_EVIDENCE_INDEX.md`)**](docs/FINAL_EVIDENCE_INDEX.md) — Index of all test scripts, outputs, and database migrations.
+* 🚀 [**Final Operational Handover (`docs/FINAL_HANDOVER.md`)**](docs/FINAL_HANDOVER.md) — Operator runbook and execution guides.
+* 🧊 [**Final Freeze Report (`docs/FINAL_FREEZE_REPORT.md`)**](docs/FINAL_FREEZE_REPORT.md) — Pre-freeze audit and verification report.
+* 🏷️ [**GitHub Release Report (`docs/FINAL_GITHUB_RELEASE_REPORT.md`)**](docs/FINAL_GITHUB_RELEASE_REPORT.md) — Release branch, tag, and PR #9 details.
+
+### Milestone Verification Reports
+* **M0:** [`docs/M0_TECHNICAL_FEASIBILITY.md`](docs/M0_TECHNICAL_FEASIBILITY.md) · [`docs/M0_COMPATIBILITY_REPORT.md`](docs/M0_COMPATIBILITY_REPORT.md)
+* **M1:** [`docs/M1_TEST_REPORT.md`](docs/M1_TEST_REPORT.md) · [`docs/DEVELOPMENT_SETUP.md`](docs/DEVELOPMENT_SETUP.md)
+* **M2:** [`docs/M2_MASTER_FINAL_AUDIT_REPORT.md`](docs/M2_MASTER_FINAL_AUDIT_REPORT.md) · [`docs/M2_ARCHITECTURE.md`](docs/M2_ARCHITECTURE.md) · [`docs/M2.3A_KEYSTORE_REPORT.md`](docs/M2.3A_KEYSTORE_REPORT.md) · [`docs/ONE_TIME_DEVICE_ENROLLMENT.md`](docs/ONE_TIME_DEVICE_ENROLLMENT.md)
+* **M3:** [`docs/M3_FINAL_SECURITY_REVIEW.md`](docs/M3_FINAL_SECURITY_REVIEW.md) · [`docs/M3_ASSET_VAULT_BROWSER_E2E_REPORT.md`](docs/M3_ASSET_VAULT_BROWSER_E2E_REPORT.md) · [`docs/M3_ALIZA_ASSET_VAULT_INTEGRATION.md`](docs/M3_ALIZA_ASSET_VAULT_INTEGRATION.md)
+* **M4:** [`docs/M4_FINAL_ACCEPTANCE_REPORT.md`](docs/M4_FINAL_ACCEPTANCE_REPORT.md) · [`docs/M4_BROWSER_ACCEPTANCE_REPORT.md`](docs/M4_BROWSER_ACCEPTANCE_REPORT.md) · [`docs/M4_BACKEND_TEST_REPORT.md`](docs/M4_BACKEND_TEST_REPORT.md) · [`docs/M4_FRONTEND_TEST_REPORT.md`](docs/M4_FRONTEND_TEST_REPORT.md)
+
+### Visual Evidence & Acceptance Screenshots
+* 🖼️ [**Browser Acceptance Screenshots Directory (`docs/screenshots/m4_acceptance/`)**](docs/screenshots/m4_acceptance/)
+* 📊 [**Machine-Readable Acceptance Results (`docs/screenshots/m4_acceptance/acceptance_results.json`)**](docs/screenshots/m4_acceptance/acceptance_results.json)
 
 ---
 

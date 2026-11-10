@@ -26,7 +26,7 @@ All 17 acceptance scenario requirements passed with **zero console errors** and 
 
 ## 2. Test Execution Details
 
-- **Test Script:** [`scripts/m4_browser_acceptance_test.py`](file:///D:/Projects/IPGuard/scripts/m4_browser_acceptance_test.py)
+- **Test Script:** [`scripts/m4_browser_acceptance_test.py`](../scripts/m4_browser_acceptance_test.py)
 - **Target Browser:** Headless Chromium (1366x860, 24-bit sRGB)
 - **Session Token:** Hardware-bound session with `APPROVED` state in PostgreSQL
 - **Execution Timestamp:** 2026-11-10T06:55:35Z
@@ -43,13 +43,13 @@ All 17 acceptance scenario requirements passed with **zero console errors** and 
 ### Step 1 — Initial Asset Vault View
 - **Action:** Injected hardware-bound session token into `sessionStorage` and navigated to `/assets`.
 - **Validation:** Vault unlocked immediately, displaying the `Hardware-Bound Active` status pill and Milestone 4 title: *"Asset Vault & Steganography"*.
-- **Screenshot Evidence:** [`docs/screenshots/m4_acceptance/01_asset_vault_initial.png`](file:///D:/Projects/IPGuard/docs/screenshots/m4_acceptance/01_asset_vault_initial.png)
+- **Screenshot Evidence:** [`docs/screenshots/m4_acceptance/01_asset_vault_initial.png`](screenshots/m4_acceptance/01_asset_vault_initial.png)
 
 ### Step 2 — Upload Master PNG
 - **Action:** Clicked `Upload Asset`, selected `master_artwork_256.png` (256x256 truecolor RGB PNG), and submitted `Encrypt & Save`.
 - **Validation:** File encrypted via per-device XChaCha20-Poly1305 and recorded in PostgreSQL. Table refreshed immediately showing `master_artwork_256.png` with badge `Original Asset`.
-- **Screenshot Evidence:** [`docs/screenshots/m4_acceptance/02_asset_uploaded.png`](file:///D:/Projects/IPGuard/docs/screenshots/m4_acceptance/02_asset_uploaded.png)
-
+- **Screenshot Evidence:** [`docs/screenshots/m4_acceptance/02_asset_uploaded.png`](screenshots/m4_acceptance/02_asset_uploaded.png)
+-
 ### Step 3 — Watermark Configuration Modal
 - **Action:** Clicked `Watermark` button on the original asset row.
 - **Validation:** Modal displayed source image metadata (filename, size), automatic cryptographic parameters (`Ed25519 (Hardware)`, `SHA-256 Digest`), and custom input fields.
@@ -58,13 +58,13 @@ All 17 acceptance scenario requirements passed with **zero console errors** and 
   - **License:** `Enterprise Proprietary License (M4 Verified)`
   - **Custom Statement:** `Confidential - Authorized Production Review Build`
   - **Description:** `Master derivative with hardware-bound Ed25519 digital watermark.`
-- **Screenshot Evidence:** [`docs/screenshots/m4_acceptance/03_watermark_config_modal.png`](file:///D:/Projects/IPGuard/docs/screenshots/m4_acceptance/03_watermark_config_modal.png)
+- **Screenshot Evidence:** [`docs/screenshots/m4_acceptance/03_watermark_config_modal.png`](screenshots/m4_acceptance/03_watermark_config_modal.png)
 
 ### Step 4 — Embed Watermark Execution
 - **Action:** Clicked `Embed Watermark`.
 - **Validation:** Button entered loading state (`Embedding & Signing...`). Backend embedded `IPGW` binary frame into row-major RGB LSBs, signed with Ed25519, created derivative record `master_artwork_256.watermarked.png`, encrypted under XChaCha20-Poly1305, and appended an audit event to the hash chain.
 - **Result:** Success banner displayed Derivative Filename, Derivative Asset ID, Watermark UUID (`380fd58b-7fb2-4ab6-8ea2-40c06c8b31f3`), and `IPGW Version 1`.
-- **Screenshot Evidence:** [`docs/screenshots/m4_acceptance/04_embed_success.png`](file:///D:/Projects/IPGuard/docs/screenshots/m4_acceptance/04_embed_success.png)
+- **Screenshot Evidence:** [`docs/screenshots/m4_acceptance/04_embed_success.png`](screenshots/m4_acceptance/04_embed_success.png)
 
 ### Step 5 — In-Browser File Download
 - **Action:** Intercepted Playwright download stream triggered by `Download Watermarked Image`.
@@ -75,12 +75,12 @@ All 17 acceptance scenario requirements passed with **zero console errors** and 
 ### Step 6 — Table Inspection with Derivative Asset
 - **Action:** Navigated to Asset Vault table.
 - **Validation:** Table showed both original master and derivative asset. Derivative row displayed the `PNG_LSB Derivative` badge with parent lineage link (`from 5dfe779a...`).
-- **Screenshot Evidence:** [`docs/screenshots/m4_acceptance/05_vault_with_derivative.png`](file:///D:/Projects/IPGuard/docs/screenshots/m4_acceptance/05_vault_with_derivative.png)
+- **Screenshot Evidence:** [`docs/screenshots/m4_acceptance/05_vault_with_derivative.png`](screenshots/m4_acceptance/05_vault_with_derivative.png)
 
 ### Step 7 — Live Watermark Verification Modal
 - **Action:** Clicked `Verify Watermark` shield icon on the derivative row.
 - **Validation:** Triggered `POST /api/v1/assets/{id}/steganography/verify`. Modal rendered `Watermark Verified & Authentic` with green checkmark, confirming Ed25519 signature validity, SHA-256 integrity, Watermark UUID, and Source Asset ID.
-- **Screenshot Evidence:** [`docs/screenshots/m4_acceptance/06_verify_success_modal.png`](file:///D:/Projects/IPGuard/docs/screenshots/m4_acceptance/06_verify_success_modal.png)
+- **Screenshot Evidence:** [`docs/screenshots/m4_acceptance/06_verify_success_modal.png`](screenshots/m4_acceptance/06_verify_success_modal.png)
 
 ### Step 8 — Watermark Payload Extraction Modal
 - **Action:** Clicked `Extract Verified Payload` from within the verification modal.
@@ -90,17 +90,17 @@ All 17 acceptance scenario requirements passed with **zero console errors** and 
   - Custom Statement: `Confidential - Authorized Production Review Build`
   - Description: `Master derivative with hardware-bound Ed25519 digital watermark.`
 - **Action Test:** Clicked `Copy` button; UI displayed `Copied` confirmation.
-- **Screenshot Evidence:** [`docs/screenshots/m4_acceptance/07_extract_payload_modal.png`](file:///D:/Projects/IPGuard/docs/screenshots/m4_acceptance/07_extract_payload_modal.png)
+- **Screenshot Evidence:** [`docs/screenshots/m4_acceptance/07_extract_payload_modal.png`](screenshots/m4_acceptance/07_extract_payload_modal.png)
 
 ### Step 9 — Inspect Modal Details
 - **Action:** Clicked `Inspect Metadata & Preview` (Eye icon) on derivative row.
 - **Validation:** Displayed decrypted image preview, MIME type `image/png`, size (3,498 bytes), Cipher Suite `XChaCha20-Poly1305`, Source Asset ID, Watermark UUID, and SHA-256 baseline hash.
-- **Screenshot Evidence:** [`docs/screenshots/m4_acceptance/08_derivative_inspect_modal.png`](file:///D:/Projects/IPGuard/docs/screenshots/m4_acceptance/08_derivative_inspect_modal.png)
+- **Screenshot Evidence:** [`docs/screenshots/m4_acceptance/08_derivative_inspect_modal.png`](screenshots/m4_acceptance/08_derivative_inspect_modal.png)
 
 ### Step 10 — Watermarked Filter Tab
 - **Action:** Clicked `Watermarked (M4)` filter tab.
 - **Validation:** Table immediately filtered to show exclusively the `PNG_LSB Derivative` assets, isolating derivative work.
-- **Screenshot Evidence:** [`docs/screenshots/m4_acceptance/09_watermarked_filter_tab.png`](file:///D:/Projects/IPGuard/docs/screenshots/m4_acceptance/09_watermarked_filter_tab.png)
+- **Screenshot Evidence:** [`docs/screenshots/m4_acceptance/09_watermarked_filter_tab.png`](screenshots/m4_acceptance/09_watermarked_filter_tab.png)
 
 ---
 

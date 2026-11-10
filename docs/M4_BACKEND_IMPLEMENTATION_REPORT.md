@@ -24,39 +24,39 @@ Integrasi ini mempertahankan seluruh algoritma asli yang dibuat oleh Ali:
 ## 2. Rincian File yang Diubah & Ditambahkan
 
 ### A. Modifikasi File yang Sudah Ada (*Modified Files*)
-1. [`backend/requirements.txt`](file:///D:/Projects/IPGuard/backend/requirements.txt): Menambahkan `Pillow>=11.0,<13.0`.
-2. [`backend/app/core/config.py`](file:///D:/Projects/IPGuard/backend/app/core/config.py): Menambahkan konfigurasi Ed25519 (`stego_signing_private_key_b64`, `stego_active_key_id`, `stego_public_keys_json`, dan limit gambar/payload).
-3. [`backend/app/models/asset.py`](file:///D:/Projects/IPGuard/backend/app/models/asset.py): Menambahkan kolom `source_asset_id`, `derivative_type`, `watermark_id`, `stego_format_version`, dan relasi self-referencing.
-4. [`backend/app/models/__init__.py`](file:///D:/Projects/IPGuard/backend/app/models/__init__.py): Mengekspor model `AuditChainHead` dan `AuditEvent`.
-5. [`backend/app/schemas/asset.py`](file:///D:/Projects/IPGuard/backend/app/schemas/asset.py): Menambahkan schema `StegoEmbedRequest`, `StegoEmbedResponse`, `WatermarkVerifyResponse`, `WatermarkExtractResponse`.
-6. [`backend/app/services/assets.py`](file:///D:/Projects/IPGuard/backend/app/services/assets.py): Menambahkan validasi integritas saat download, pembatalan file yatim saat transaksi gagal, dan proteksi foreign key saat penghapusan aset.
-7. [`backend/app/services/asset_storage.py`](file:///D:/Projects/IPGuard/backend/app/services/asset_storage.py): Sinkronisasi operasi file storage.
-8. [`backend/app/api/routes/assets.py`](file:///D:/Projects/IPGuard/backend/app/api/routes/assets.py): Mengimplementasikan endpoint `/steganography/embed`, `/verify`, `/extract`, dan `/integrity`.
+1. [`backend/requirements.txt`](../backend/requirements.txt): Menambahkan `Pillow>=11.0,<13.0`.
+2. [`backend/app/core/config.py`](../backend/app/core/config.py): Menambahkan konfigurasi Ed25519 (`stego_signing_private_key_b64`, `stego_active_key_id`, `stego_public_keys_json`, dan limit gambar/payload).
+3. [`backend/app/models/asset.py`](../backend/app/models/asset.py): Menambahkan kolom `source_asset_id`, `derivative_type`, `watermark_id`, `stego_format_version`, dan relasi self-referencing.
+4. [`backend/app/models/__init__.py`](../backend/app/models/__init__.py): Mengekspor model `AuditChainHead` dan `AuditEvent`.
+5. [`backend/app/schemas/asset.py`](../backend/app/schemas/asset.py): Menambahkan schema `StegoEmbedRequest`, `StegoEmbedResponse`, `WatermarkVerifyResponse`, `WatermarkExtractResponse`.
+6. [`backend/app/services/assets.py`](../backend/app/services/assets.py): Menambahkan validasi integritas saat download, pembatalan file yatim saat transaksi gagal, dan proteksi foreign key saat penghapusan aset.
+7. [`backend/app/services/asset_storage.py`](../backend/app/services/asset_storage.py): Sinkronisasi operasi file storage.
+8. [`backend/app/api/routes/assets.py`](../backend/app/api/routes/assets.py): Mengimplementasikan endpoint `/steganography/embed`, `/verify`, `/extract`, dan `/integrity`.
 
 ### B. Penambahan File Baru (*New Files*)
 1. **Migrations:**
-   - [`backend/app/db/migrations/versions/0007_asset_integrity_metadata.py`](file:///D:/Projects/IPGuard/backend/app/db/migrations/versions/0007_asset_integrity_metadata.py)
-   - [`backend/app/db/migrations/versions/0008_audit_hash_chain.py`](file:///D:/Projects/IPGuard/backend/app/db/migrations/versions/0008_audit_hash_chain.py)
-   - [`backend/app/db/migrations/versions/0009_png_lsb_derivatives.py`](file:///D:/Projects/IPGuard/backend/app/db/migrations/versions/0009_png_lsb_derivatives.py)
+   - [`backend/app/db/migrations/versions/0007_asset_integrity_metadata.py`](../backend/app/db/migrations/versions/0007_asset_integrity_metadata.py)
+   - [`backend/app/db/migrations/versions/0008_audit_hash_chain.py`](../backend/app/db/migrations/versions/0008_audit_hash_chain.py)
+   - [`backend/app/db/migrations/versions/0009_png_lsb_derivatives.py`](../backend/app/db/migrations/versions/0009_png_lsb_derivatives.py)
 2. **Models & Services:**
-   - [`backend/app/models/audit.py`](file:///D:/Projects/IPGuard/backend/app/models/audit.py)
-   - [`backend/app/services/png_steganography.py`](file:///D:/Projects/IPGuard/backend/app/services/png_steganography.py)
-   - [`backend/app/services/steganography.py`](file:///D:/Projects/IPGuard/backend/app/services/steganography.py)
-   - [`backend/app/services/audit_chain.py`](file:///D:/Projects/IPGuard/backend/app/services/audit_chain.py)
-   - [`backend/app/services/asset_integrity.py`](file:///D:/Projects/IPGuard/backend/app/services/asset_integrity.py)
-   - [`backend/app/workers/integrity.py`](file:///D:/Projects/IPGuard/backend/app/workers/integrity.py)
+   - [`backend/app/models/audit.py`](../backend/app/models/audit.py)
+   - [`backend/app/services/png_steganography.py`](../backend/app/services/png_steganography.py)
+   - [`backend/app/services/steganography.py`](../backend/app/services/steganography.py)
+   - [`backend/app/services/audit_chain.py`](../backend/app/services/audit_chain.py)
+   - [`backend/app/services/asset_integrity.py`](../backend/app/services/asset_integrity.py)
+   - [`backend/app/workers/integrity.py`](../backend/app/workers/integrity.py)
 3. **Documentation:**
-   - [`docs/png-lsb-steganography.md`](file:///D:/Projects/IPGuard/docs/png-lsb-steganography.md)
-   - [`docs/audit-hash-chain-deployment.md`](file:///D:/Projects/IPGuard/docs/audit-hash-chain-deployment.md)
+   - [`docs/png-lsb-steganography.md`](png-lsb-steganography.md)
+   - [`docs/audit-hash-chain-deployment.md`](audit-hash-chain-deployment.md)
 4. **Test Suites:**
-   - [`backend/tests/test_png_steganography.py`](file:///D:/Projects/IPGuard/backend/tests/test_png_steganography.py)
-   - [`backend/tests/test_steganography_asset_integration.py`](file:///D:/Projects/IPGuard/backend/tests/test_steganography_asset_integration.py)
-   - [`backend/tests/test_png_steganography_api.py`](file:///D:/Projects/IPGuard/backend/tests/test_png_steganography_api.py)
-   - [`backend/tests/test_audit_chain.py`](file:///D:/Projects/IPGuard/backend/tests/test_audit_chain.py)
-   - [`backend/tests/test_asset_integrity.py`](file:///D:/Projects/IPGuard/backend/tests/test_asset_integrity.py)
-   - [`backend/tests/test_asset_integrity_audit.py`](file:///D:/Projects/IPGuard/backend/tests/test_asset_integrity_audit.py)
-   - [`backend/tests/test_asset_integrity_integration.py`](file:///D:/Projects/IPGuard/backend/tests/test_asset_integrity_integration.py)
-   - [`backend/tests/test_asset_integrity_worker.py`](file:///D:/Projects/IPGuard/backend/tests/test_asset_integrity_worker.py)
+   - [`backend/tests/test_png_steganography.py`](../backend/tests/test_png_steganography.py)
+   - [`backend/tests/test_steganography_asset_integration.py`](../backend/tests/test_steganography_asset_integration.py)
+   - [`backend/tests/test_png_steganography_api.py`](../backend/tests/test_png_steganography_api.py)
+   - [`backend/tests/test_audit_chain.py`](../backend/tests/test_audit_chain.py)
+   - [`backend/tests/test_asset_integrity.py`](../backend/tests/test_asset_integrity.py)
+   - [`backend/tests/test_asset_integrity_audit.py`](../backend/tests/test_asset_integrity_audit.py)
+   - [`backend/tests/test_asset_integrity_integration.py`](../backend/tests/test_asset_integrity_integration.py)
+   - [`backend/tests/test_asset_integrity_worker.py`](../backend/tests/test_asset_integrity_worker.py)
 
 ---
 

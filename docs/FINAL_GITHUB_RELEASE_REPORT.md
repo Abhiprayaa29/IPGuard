@@ -85,4 +85,4 @@ git checkout release/m0-m4-final
 git checkout v1.0.0-m0-m4
 ```
 
-Refer to [`docs/FINAL_HANDOVER.md`](file:///D:/Projects/IPGuard/docs/FINAL_HANDOVER.md) for full reproduction and runtime instructions.
+Refer to [`docs/FINAL_HANDOVER.md`](FINAL_HANDOVER.md) for full reproduction and runtime instructions.

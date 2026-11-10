@@ -26,30 +26,30 @@ Seluruh temuan audit kritis pada `audit-anisa-m3.md` dan `ANISA_REMEDIATION_PLAN
 
 ## 2. FILE YANG DIUBAH (MODIFIED FILES)
 
-1. [`backend/app/core/config.py`](file:///C:/Users/user/Documents/02_Projects/IPGuard/backend/app/core/config.py):
+1. [`backend/app/core/config.py`](backend/app/core/config.py):
    - Menambahkan field `notes_master_key_b64: str | None`.
    - Menambahkan property `notes_master_key_bytes` dengan validasi Base64 32-byte ketat dan fail-closed startup pada `app_env == "production"`.
-2. [`backend/app/main.py`](file:///C:/Users/user/Documents/02_Projects/IPGuard/backend/app/main.py):
+2. [`backend/app/main.py`](backend/app/main.py):
    - Menambahkan FastAPI `lifespan` handler untuk mengeksekusi validasi startup master key saat production.
    - Memperbarui CORS `allow_methods` agar mencakup `["GET", "POST", "PUT", "DELETE", "OPTIONS"]`.
-3. [`backend/.env.example`](file:///C:/Users/user/Documents/02_Projects/IPGuard/backend/.env.example):
+3. [`backend/.env.example`](backend/.env.example):
    - Menambahkan dokumentasi parameter `NOTES_MASTER_KEY_B64`.
-4. [`backend/app/models/__init__.py`](file:///C:/Users/user/Documents/02_Projects/IPGuard/backend/app/models/__init__.py):
+4. [`backend/app/models/__init__.py`](backend/app/models/__init__.py):
    - Mendaftarkan model `Note` ke `__all__ = ["AuthSession", "Device", "Note"]`.
-5. [`backend/app/schemas/__init__.py`](file:///C:/Users/user/Documents/02_Projects/IPGuard/backend/app/schemas/__init__.py):
+5. [`backend/app/schemas/__init__.py`](backend/app/schemas/__init__.py):
    - Mengekspor `NoteCreateRequest`, `NoteResponse`, `NoteUpdateRequest`.
-6. [`backend/app/services/__init__.py`](file:///C:/Users/user/Documents/02_Projects/IPGuard/backend/app/services/__init__.py):
+6. [`backend/app/services/__init__.py`](backend/app/services/__init__.py):
    - Mengekspor service kriptografi `encrypt_note`, `decrypt_note`, `derive_user_key` dan CRUD service notes.
-7. [`backend/app/api/routes/__init__.py`](file:///C:/Users/user/Documents/02_Projects/IPGuard/backend/app/api/routes/__init__.py):
+7. [`backend/app/api/routes/__init__.py`](backend/app/api/routes/__init__.py):
    - Mendaftarkan modul router `notes`.
-8. [`backend/app/api/router.py`](file:///C:/Users/user/Documents/02_Projects/IPGuard/backend/app/api/router.py):
+8. [`backend/app/api/router.py`](backend/app/api/router.py):
    - Menyertakan route notes: `api_router.include_router(notes.router, prefix="/notes", tags=["notes"])`.
-9. [`frontend/src/app/router.tsx`](file:///C:/Users/user/Documents/02_Projects/IPGuard/frontend/src/app/router.tsx):
+9. [`frontend/src/app/router.tsx`](frontend/src/app/router.tsx):
    - Mendaftarkan rute `/notes` yang mengarah ke `<NotesPage />`.
-10. [`frontend/src/pages/auth/QrLoginPage.tsx`](file:///C:/Users/user/Documents/02_Projects/IPGuard/frontend/src/pages/auth/QrLoginPage.tsx):
+10. [`frontend/src/pages/auth/QrLoginPage.tsx`](frontend/src/pages/auth/QrLoginPage.tsx):
     - Menyimpan token ke `sessionStorage` saat autentikasi sukses.
     - Menambahkan tombol navigasi langsung "Open Secure Notes Vault" pada layar "Access Granted".
-11. [`frontend/src/components/layout/AppShell.tsx`](file:///C:/Users/user/Documents/02_Projects/IPGuard/frontend/src/components/layout/AppShell.tsx):
+11. [`frontend/src/components/layout/AppShell.tsx`](frontend/src/components/layout/AppShell.tsx):
     - Menambahkan menu navigasi "Secure Notes" pada header aplikasi.
 
 ---
@@ -57,23 +57,23 @@ Seluruh temuan audit kritis pada `audit-anisa-m3.md` dan `ANISA_REMEDIATION_PLAN
 ## 3. FILE YANG DITAMBAHKAN (ADDED FILES)
 
 ### Backend
-1. [`backend/app/models/note.py`](file:///C:/Users/user/Documents/02_Projects/IPGuard/backend/app/models/note.py): Model SQLAlchemy tabel `notes` dengan kolom `id`, `owner_id`, `title_enc`, `content_enc`, `created_at`, `updated_at`.
-2. [`backend/app/schemas/note.py`](file:///C:/Users/user/Documents/02_Projects/IPGuard/backend/app/schemas/note.py): Schema Pydantic untuk request validasi dan respons.
-3. [`backend/app/services/note_crypto.py`](file:///C:/Users/user/Documents/02_Projects/IPGuard/backend/app/services/note_crypto.py): Engine kriptografi super-encryption AES-256-GCM + Vigenère + HKDF-SHA256 envelope versioning `v1$`.
-4. [`backend/app/services/notes.py`](file:///C:/Users/user/Documents/02_Projects/IPGuard/backend/app/services/notes.py): Business logic CRUD notes dengan row-level locking (`SELECT ... FOR UPDATE`).
-5. [`backend/app/api/deps.py`](file:///C:/Users/user/Documents/02_Projects/IPGuard/backend/app/api/deps.py): Dependency otentikasi M2 session & hardware authenticator guard.
-6. [`backend/app/api/routes/notes.py`](file:///C:/Users/user/Documents/02_Projects/IPGuard/backend/app/api/routes/notes.py): Router endpoint REST API `/api/v1/notes`.
-7. [`backend/app/db/migrations/versions/0004_secure_notes.py`](file:///C:/Users/user/Documents/02_Projects/IPGuard/backend/app/db/migrations/versions/0004_secure_notes.py): Migrasi Alembic pembuatan tabel `notes`.
-8. [`backend/tests/test_note_crypto.py`](file:///C:/Users/user/Documents/02_Projects/IPGuard/backend/tests/test_note_crypto.py): 12 unit test kriptografi, envelope, domain separation, tampering, dan fail-closed production key.
-9. [`backend/tests/test_notes_api.py`](file:///C:/Users/user/Documents/02_Projects/IPGuard/backend/tests/test_notes_api.py): 13 integration test endpoint notes, otorisasi M2, isolasi multi-tenant, dan verifikasi direct SQL.
+1. [`backend/app/models/note.py`](backend/app/models/note.py): Model SQLAlchemy tabel `notes` dengan kolom `id`, `owner_id`, `title_enc`, `content_enc`, `created_at`, `updated_at`.
+2. [`backend/app/schemas/note.py`](backend/app/schemas/note.py): Schema Pydantic untuk request validasi dan respons.
+3. [`backend/app/services/note_crypto.py`](backend/app/services/note_crypto.py): Engine kriptografi super-encryption AES-256-GCM + Vigenère + HKDF-SHA256 envelope versioning `v1$`.
+4. [`backend/app/services/notes.py`](backend/app/services/notes.py): Business logic CRUD notes dengan row-level locking (`SELECT ... FOR UPDATE`).
+5. [`backend/app/api/deps.py`](backend/app/api/deps.py): Dependency otentikasi M2 session & hardware authenticator guard.
+6. [`backend/app/api/routes/notes.py`](backend/app/api/routes/notes.py): Router endpoint REST API `/api/v1/notes`.
+7. [`backend/app/db/migrations/versions/0004_secure_notes.py`](backend/app/db/migrations/versions/0004_secure_notes.py): Migrasi Alembic pembuatan tabel `notes`.
+8. [`backend/tests/test_note_crypto.py`](backend/tests/test_note_crypto.py): 12 unit test kriptografi, envelope, domain separation, tampering, dan fail-closed production key.
+9. [`backend/tests/test_notes_api.py`](backend/tests/test_notes_api.py): 13 integration test endpoint notes, otorisasi M2, isolasi multi-tenant, dan verifikasi direct SQL.
 
 ### Frontend
-10. [`frontend/src/types/notes.ts`](file:///C:/Users/user/Documents/02_Projects/IPGuard/frontend/src/types/notes.ts): TypeScript interfaces untuk data catatan terenkripsi.
-11. [`frontend/src/utils/session.ts`](file:///C:/Users/user/Documents/02_Projects/IPGuard/frontend/src/utils/session.ts): Helper persistensi sesi browser berbasis `sessionStorage`.
-12. [`frontend/src/services/notes.ts`](file:///C:/Users/user/Documents/02_Projects/IPGuard/frontend/src/services/notes.ts): API client service berbasis Axios (`apiClient`).
-13. [`frontend/src/components/notes/NoteModal.tsx`](file:///C:/Users/user/Documents/02_Projects/IPGuard/frontend/src/components/notes/NoteModal.tsx): Modal dialog pembuatan dan pengeditan catatan.
-14. [`frontend/src/components/notes/DeleteConfirmModal.tsx`](file:///C:/Users/user/Documents/02_Projects/IPGuard/frontend/src/components/notes/DeleteConfirmModal.tsx): Dialog konfirmasi penghapusan catatan.
-15. [`frontend/src/pages/notes/NotesPage.tsx`](file:///C:/Users/user/Documents/02_Projects/IPGuard/frontend/src/pages/notes/NotesPage.tsx): Halaman utama Secure Notes Vault (loading, empty, error, grid view, view modal, search).
+10. [`frontend/src/types/notes.ts`](frontend/src/types/notes.ts): TypeScript interfaces untuk data catatan terenkripsi.
+11. [`frontend/src/utils/session.ts`](frontend/src/utils/session.ts): Helper persistensi sesi browser berbasis `sessionStorage`.
+12. [`frontend/src/services/notes.ts`](frontend/src/services/notes.ts): API client service berbasis Axios (`apiClient`).
+13. [`frontend/src/components/notes/NoteModal.tsx`](frontend/src/components/notes/NoteModal.tsx): Modal dialog pembuatan dan pengeditan catatan.
+14. [`frontend/src/components/notes/DeleteConfirmModal.tsx`](frontend/src/components/notes/DeleteConfirmModal.tsx): Dialog konfirmasi penghapusan catatan.
+15. [`frontend/src/pages/notes/NotesPage.tsx`](frontend/src/pages/notes/NotesPage.tsx): Halaman utama Secure Notes Vault (loading, empty, error, grid view, view modal, search).
 
 ---
 
@@ -91,7 +91,7 @@ Seluruh temuan audit kritis pada `audit-anisa-m3.md` dan `ANISA_REMEDIATION_PLAN
 
 ## 5. INTEGRASI SISTEM AUTENTIKASI M2
 
-Sistem autentikasi diintegrasikan melalui dependency [`get_current_authenticated_device`](file:///C:/Users/user/Documents/02_Projects/IPGuard/backend/app/api/deps.py) dan [`get_current_owner_id`](file:///C:/Users/user/Documents/02_Projects/IPGuard/backend/app/api/deps.py):
+Sistem autentikasi diintegrasikan melalui dependency [`get_current_authenticated_device`](backend/app/api/deps.py) dan [`get_current_owner_id`](backend/app/api/deps.py):
 1. **Format Header:** Menerima `Authorization: Bearer <token>` pada setiap panggilan API notes.
 2. **Dukungan Token:** Mendukung full 64-hex `session_token` maupun `ipguard_sess_<token>` (prefix 24-hex yang dihasilkan M2 web polling).
 3. **Pencarian Aman Tanpa Ambigu:** Pencocokan exact match diprioritaskan. Untuk prefix 24-hex, backend memastikan hasil pencarian tepat 1 sesi; jika ambigu (>1 sesi), melempar `HTTP 401 ambiguous_session_token`.
@@ -129,7 +129,7 @@ Sistem autentikasi diintegrasikan melalui dependency [`get_current_authenticated
 
 ## 7. IMPLEMENTASI KRIPTOGRAFI & SUPER-ENCRYPTION
 
-Implementasi kriptografi terletak pada [`app/services/note_crypto.py`](file:///C:/Users/user/Documents/02_Projects/IPGuard/backend/app/services/note_crypto.py):
+Implementasi kriptografi terletak pada [`app/services/note_crypto.py`](backend/app/services/note_crypto.py):
 1. **AES-256-GCM:** Menggunakan `cryptography.hazmat.primitives.ciphers.aead.AESGCM`. Menghasilkan ciphertext terotentikasi dengan 12-byte random IV (`os.urandom(12)`) dan 16-byte authentication tag.
 2. **Lapisan Vigenère:** Menggeser karakter alfabet `[A-Za-z]` menggunakan keyword deterministik 12-karakter yang diturunkan dari SHA-256 derived AES key. Angka, simbol, tanda baca, spasi, dan karakter Unicode dilewatkan utuh.
 3. **Format Envelope:** Seluruh ciphertext disimpan dengan prefix versi: `v1$<base64(12B_nonce + ct + 16B_tag)>`.
@@ -151,8 +151,8 @@ Implementasi kriptografi terletak pada [`app/services/note_crypto.py`](file:///C
 
 ## 9. INTEGRASI FRONTEND (REACT + TYPESCRIPT)
 
-1. **Rute Terproteksi:** Rute `/notes` terdaftar di [`AppRouter`](file:///C:/Users/user/Documents/02_Projects/IPGuard/frontend/src/app/router.tsx). Jika pengguna belum login, halaman menampilkan state informatif "Hardware Authentication Required" dengan tombol login QR.
-2. **Ketahanan Refresh (Session Recovery):** Token sesi disimpan pada `sessionStorage` melalui [`frontend/src/utils/session.ts`](file:///C:/Users/user/Documents/02_Projects/IPGuard/frontend/src/utils/session.ts). Pengguna dapat me-refresh halaman `/notes` tanpa kehilangan sesi autentikasi. Token otomatis terhapus saat tab browser ditutup atau tombol "Sign Out" diklik.
+1. **Rute Terproteksi:** Rute `/notes` terdaftar di [`AppRouter`](frontend/src/app/router.tsx). Jika pengguna belum login, halaman menampilkan state informatif "Hardware Authentication Required" dengan tombol login QR.
+2. **Ketahanan Refresh (Session Recovery):** Token sesi disimpan pada `sessionStorage` melalui [`frontend/src/utils/session.ts`](frontend/src/utils/session.ts). Pengguna dapat me-refresh halaman `/notes` tanpa kehilangan sesi autentikasi. Token otomatis terhapus saat tab browser ditutup atau tombol "Sign Out" diklik.
 3. **Komponen Lengkap:**
    - **NotesPage:** Hero header, search filter, indikator status enkripsi, 4-state lifecycle (loading skeleton, empty state, error banner, responsive card grid).
    - **NoteModal:** Modal pop-up super-enkripsi untuk pembuatan dan pengeditan catatan.

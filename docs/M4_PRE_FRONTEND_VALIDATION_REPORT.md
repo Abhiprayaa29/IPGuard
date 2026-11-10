@@ -122,4 +122,4 @@ Status akhir diverifikasi:
 
 Seluruh fondasi backend Milestone 4 (M4) telah stabil, aman, dan teruji secara menyeluruh terhadap database PostgreSQL nyata. Tidak ditemukan regresi pada fungsionalitas Milestone 1, 2, maupun 3.
 
-Tim pengembang dapat melanjutkan ke implementasi frontend Web Console IPGuard (`AssetVaultPage.tsx`, `services/assets.ts`, dan `types/assets.ts`) sesuai dengan panduan arsitektur di [`docs/M4_FRONTEND_SPEC.md`](file:///D:/Projects/IPGuard/docs/M4_FRONTEND_SPEC.md).
+Tim pengembang dapat melanjutkan ke implementasi frontend Web Console IPGuard (`AssetVaultPage.tsx`, `services/assets.ts`, dan `types/assets.ts`) sesuai dengan panduan arsitektur di [`docs/M4_FRONTEND_SPEC.md`](M4_FRONTEND_SPEC.md).
