@@ -1,0 +1,7 @@
+flowchart LR
+  MK["Master Encryption Key (Config / Env)"] --> HKDF["HKDF-SHA256 (salt + info=owner_device_id)"]
+  HKDF --> Subkey["256-bit Device Subkey (Per-Device Isolation)"]
+  Plain["Note Plaintext (title, content)"] --> GCM["AES-256-GCM + Random 96-bit Nonce + AAD(owner_id)"]
+  Subkey --> GCM
+  GCM --> Cipher["Stored Wire Format: v1$base64(nonce + ciphertext + 128-bit GCM tag)"]
+  Cipher --> PG[("PostgreSQL notes(title_enc, content_enc)")]

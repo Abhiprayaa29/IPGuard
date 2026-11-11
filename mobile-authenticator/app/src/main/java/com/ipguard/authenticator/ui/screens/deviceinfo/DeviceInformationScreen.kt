@@ -209,6 +209,13 @@ fun DeviceInformationScreen(
                 showDivider = false
             )
             Spacer(Modifier.height(12.dp))
+            if (isRevoked) {
+                NoticeCard(
+                    text = "Device access is REVOKED while occupying your account's 1/1 slot. Restore access in Web Console (Devices -> Restore Access with Account Recovery Key) and then tap Sync Status.",
+                    tone = NoticeTone.WARNING
+                )
+                Spacer(Modifier.height(10.dp))
+            }
             ScreenActions(
                 primaryLabel = if (uiState.isSyncingBackend) "Syncing Backend Status..." else "Sync Status from Backend",
                 onPrimary = onSyncBackend,

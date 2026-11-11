@@ -1,0 +1,20 @@
+sequenceDiagram
+  autonumber
+  participant Web as Web Console (Browser)
+  participant API as FastAPI Backend
+  participant DB as PostgreSQL 17
+  participant Phone as Android Authenticator (SM-A546E)
+  participant KS as Android Keystore (ECDSA P-256)
+  Web->>API: POST /auth/sessions (create 60s challenge)
+  API->>DB: INSERT auth_sessions (status=PENDING)
+  API-->>Web: challenge_json + X-Browser-Channel-Token (SEC-02 split)
+  Web->>Phone: Render dynamic QR (excludes browser_channel_token)
+  Phone->>Phone: CameraX scan + QrAuthPayloadParser validation
+  Phone->>Phone: Native BiometricPrompt (BIOMETRIC_WEAK pre-check)
+  Phone->>KS: Authorize CryptoObject &amp; sign canonical payload
+  KS-->>Phone: DER ECDSA P-256 signature
+  Phone->>API: POST /auth/sessions/{token}/verify
+  API->>DB: SELECT auth_sessions FOR UPDATE + verify ECDSA public key
+  API->>DB: Mark APPROVED + append AUDIT event
+  Web->>API: Poll status with X-Browser-Channel-Token
+  API-->>Web: Exchange session_token for Bearer JWT/Session (sessionStorage)

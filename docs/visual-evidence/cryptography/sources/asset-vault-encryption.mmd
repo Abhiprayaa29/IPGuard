@@ -1,0 +1,8 @@
+flowchart LR
+  File["Uploaded Binary Asset"] --> Hash["Compute Plaintext SHA-256 Baseline"]
+  MK["Master Key"] --> HKDF["HKDF-SHA256 -> Device Asset Key"]
+  File --> AEAD["XChaCha20-Poly1305 (192-bit CSPRNG Nonce + AAD)"]
+  HKDF --> AEAD
+  AEAD --> Disk["backend/storage/{storage_key} Encrypted Ciphertext"]
+  Hash --> Meta["PostgreSQL assets Metadata + Integrity Baseline"]
+  AEAD --> Meta

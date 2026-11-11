@@ -5,6 +5,7 @@ import { AssetVaultPage } from '../pages/assets/AssetVaultPage'
 import { QrLoginPage } from '../pages/auth/QrLoginPage'
 import { DeviceManagementPage } from '../pages/devices/DeviceManagementPage'
 import { NotesPage } from '../pages/notes/NotesPage'
+import { OverviewPage } from '../pages/overview/OverviewPage'
 import { SteganographyLabPage } from '../pages/steganography/SteganographyLabPage'
 import { SystemStatusPage } from '../pages/system-status/SystemStatusPage'
 
@@ -13,7 +14,8 @@ export function AppRouter() {
     <BrowserRouter>
       <Routes>
         <Route element={<AppShell />}>
-          <Route index element={<Navigate to="/login" replace />} />
+          <Route index element={<Navigate to="/overview" replace />} />
+          <Route path="/overview" element={<OverviewPage />} />
           <Route path="/login" element={<QrLoginPage />} />
           <Route path="/auth" element={<Navigate to="/login" replace />} />
           <Route path="/devices" element={<DeviceManagementPage />} />
@@ -21,7 +23,7 @@ export function AppRouter() {
           <Route path="/assets" element={<AssetVaultPage />} />
           <Route path="/steganography" element={<SteganographyLabPage />} />
           <Route path="/system-status" element={<SystemStatusPage />} />
-          <Route path="*" element={<Navigate to="/login" replace />} />
+          <Route path="*" element={<Navigate to="/overview" replace />} />
         </Route>
       </Routes>
     </BrowserRouter>

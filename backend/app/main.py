@@ -15,6 +15,7 @@ async def lifespan(app: FastAPI):
     if settings.app_env == "production":
         _ = settings.notes_master_key_bytes
         _ = settings.asset_vault_master_key_bytes
+        _ = settings.effective_account_recovery_key
     yield
 
 

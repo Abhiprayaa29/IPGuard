@@ -28,9 +28,16 @@ export function SystemStatusPage() {
           }`,
         )
       }
+      if (data.overview.state === 'offline') {
+        messages.push(
+          `System overview — ${
+            data.overview.error ?? 'Overview endpoint failed.'
+          }`,
+        )
+      }
       if (data.systemInfo.state === 'offline') {
         messages.push(
-          `System information — ${
+          `System metadata — ${
             data.systemInfo.error ?? 'Metadata could not be loaded.'
           }`,
         )
@@ -39,7 +46,7 @@ export function SystemStatusPage() {
   }
 
   return (
-    <div className="space-y-6 sm:space-y-8">
+    <div className="space-y-6">
       <ReadinessHero
         status={overallStatus}
         snapshot={data}

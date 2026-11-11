@@ -8,11 +8,15 @@ export function getOverallStatus(
     return 'checking'
   }
 
-  if (!snapshot || snapshot.health.state === 'offline') {
+  if (!snapshot) {
+    return 'unknown'
+  }
+
+  if (snapshot.health.state === 'offline') {
     return 'offline'
   }
 
-  if (snapshot.database.state === 'offline') {
+  if (snapshot.database.state === 'offline' || snapshot.overview.state === 'offline') {
     return 'degraded'
   }
 
@@ -22,12 +26,15 @@ export function getOverallStatus(
 export function getOverallLabel(status: UiStatus): string {
   switch (status) {
     case 'online':
-      return 'All core systems operational'
+      return 'Operational'
     case 'degraded':
-      return 'Database attention required'
+      return 'Degraded'
     case 'offline':
-      return 'Core services unreachable'
+      return 'Unavailable'
     case 'checking':
-      return 'Establishing secure connection'
+      return 'Checking'
+    case 'unknown':
+    default:
+      return 'Unknown'
   }
 }

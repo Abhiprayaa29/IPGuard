@@ -1,0 +1,152 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1146" height="740" viewBox="0 0 1146 740">
+  <defs>
+    <style>
+      .bg { fill: #090e13; }
+      .grid { stroke: #131c25; stroke-width: 1; }
+      .card { fill: #101820; stroke: #22303e; stroke-width: 1.5; rx: 12; }
+      .card-accent { fill: #0e1d1c; stroke: #256859; stroke-width: 1.5; rx: 12; }
+      .card-blue { fill: #0f1924; stroke: #254f73; stroke-width: 1.5; rx: 12; }
+      .card-amber { fill: #1b160d; stroke: #8a611c; stroke-width: 1.5; stroke-dasharray: 6 4; rx: 12; }
+      .card-red { fill: #1c1114; stroke: #7f2932; stroke-width: 1.5; rx: 12; }
+      .subcard { fill: #0c1319; stroke: #1d2a37; stroke-width: 1; rx: 8; }
+      .title { fill: #f1f5f9; font-family: "Segoe UI", Arial, sans-serif; font-size: 24px; font-weight: 700; }
+      .subtitle { fill: #94a3b8; font-family: "Segoe UI", Arial, sans-serif; font-size: 13px; }
+      .h2 { fill: #e2e8f0; font-family: "Segoe UI", Arial, sans-serif; font-size: 15px; font-weight: 700; }
+      .label { fill: #cbd5e1; font-family: "Segoe UI", Arial, sans-serif; font-size: 13px; font-weight: 600; }
+      .txt { fill: #94a3b8; font-family: "Segoe UI", Arial, sans-serif; font-size: 12px; }
+      .mono { fill: #a7f3d0; font-family: Consolas, "Courier New", monospace; font-size: 11.5px; }
+      .mono-dim { fill: #94a3b8; font-family: Consolas, "Courier New", monospace; font-size: 11px; }
+      .pill-text { font-family: Consolas, "Courier New", monospace; font-size: 11px; font-weight: 700; letter-spacing: 0.6px; }
+      .arrow { stroke: #34d399; stroke-width: 2; fill: none; }
+      .arrow-blue { stroke: #38bdf8; stroke-width: 2; fill: none; }
+      .arrow-amber { stroke: #f59e0b; stroke-width: 2; stroke-dasharray: 6 4; fill: none; }
+      .arrow-red { stroke: #f87171; stroke-width: 2; fill: none; }
+      .arrow-muted { stroke: #64748b; stroke-width: 1.6; fill: none; }
+      .step-num { fill: #090e13; font-family: Consolas, "Courier New", monospace; font-size: 11px; font-weight: 700; }
+      .erd-pk { fill: #34d399; font-family: Consolas, monospace; font-size: 11px; font-weight: 700; }
+      .erd-fk { fill: #38bdf8; font-family: Consolas, monospace; font-size: 11px; font-weight: 700; }
+      .erd-col { fill: #cbd5e1; font-family: Consolas, monospace; font-size: 11px; }
+    </style>
+    <marker id="m-emerald" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 1 L 10 5 L 0 9 z" fill="#34d399"/>
+    </marker>
+    <marker id="m-blue" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 1 L 10 5 L 0 9 z" fill="#38bdf8"/>
+    </marker>
+    <marker id="m-amber" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 1 L 10 5 L 0 9 z" fill="#f59e0b"/>
+    </marker>
+    <marker id="m-red" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 1 L 10 5 L 0 9 z" fill="#f87171"/>
+    </marker>
+    <marker id="m-muted" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 1 L 10 5 L 0 9 z" fill="#64748b"/>
+    </marker>
+  </defs>
+  <rect class="bg" width="1146" height="740"/>
+  <!-- subtle grid -->
+  <g opacity="0.45">
+    <line class="grid" x1="40" y1="0" x2="40" y2="740"/><line class="grid" x1="80" y1="0" x2="80" y2="740"/><line class="grid" x1="120" y1="0" x2="120" y2="740"/><line class="grid" x1="160" y1="0" x2="160" y2="740"/><line class="grid" x1="200" y1="0" x2="200" y2="740"/><line class="grid" x1="240" y1="0" x2="240" y2="740"/><line class="grid" x1="280" y1="0" x2="280" y2="740"/><line class="grid" x1="320" y1="0" x2="320" y2="740"/><line class="grid" x1="360" y1="0" x2="360" y2="740"/><line class="grid" x1="400" y1="0" x2="400" y2="740"/><line class="grid" x1="440" y1="0" x2="440" y2="740"/><line class="grid" x1="480" y1="0" x2="480" y2="740"/><line class="grid" x1="520" y1="0" x2="520" y2="740"/><line class="grid" x1="560" y1="0" x2="560" y2="740"/><line class="grid" x1="600" y1="0" x2="600" y2="740"/><line class="grid" x1="640" y1="0" x2="640" y2="740"/><line class="grid" x1="680" y1="0" x2="680" y2="740"/><line class="grid" x1="720" y1="0" x2="720" y2="740"/><line class="grid" x1="760" y1="0" x2="760" y2="740"/><line class="grid" x1="800" y1="0" x2="800" y2="740"/><line class="grid" x1="840" y1="0" x2="840" y2="740"/><line class="grid" x1="880" y1="0" x2="880" y2="740"/><line class="grid" x1="920" y1="0" x2="920" y2="740"/><line class="grid" x1="960" y1="0" x2="960" y2="740"/><line class="grid" x1="1000" y1="0" x2="1000" y2="740"/><line class="grid" x1="1040" y1="0" x2="1040" y2="740"/><line class="grid" x1="1080" y1="0" x2="1080" y2="740"/><line class="grid" x1="1120" y1="0" x2="1120" y2="740"/>
+    <line class="grid" x1="0" y1="40" x2="1146" y2="40"/><line class="grid" x1="0" y1="80" x2="1146" y2="80"/><line class="grid" x1="0" y1="120" x2="1146" y2="120"/><line class="grid" x1="0" y1="160" x2="1146" y2="160"/><line class="grid" x1="0" y1="200" x2="1146" y2="200"/><line class="grid" x1="0" y1="240" x2="1146" y2="240"/><line class="grid" x1="0" y1="280" x2="1146" y2="280"/><line class="grid" x1="0" y1="320" x2="1146" y2="320"/><line class="grid" x1="0" y1="360" x2="1146" y2="360"/><line class="grid" x1="0" y1="400" x2="1146" y2="400"/><line class="grid" x1="0" y1="440" x2="1146" y2="440"/><line class="grid" x1="0" y1="480" x2="1146" y2="480"/><line class="grid" x1="0" y1="520" x2="1146" y2="520"/><line class="grid" x1="0" y1="560" x2="1146" y2="560"/><line class="grid" x1="0" y1="600" x2="1146" y2="600"/><line class="grid" x1="0" y1="640" x2="1146" y2="640"/><line class="grid" x1="0" y1="680" x2="1146" y2="680"/><line class="grid" x1="0" y1="720" x2="1146" y2="720"/>
+  </g>
+  <!-- Header -->
+  <text x="36" y="42" class="title">PostgreSQL 17.11 Entity-Relationship Diagram</text>
+  <text x="36" y="64" class="subtitle">Relational schema matching Alembic migrations 0001-0011 (exact tables, FKs, and constraints)</text>
+  <rect x="910" y="22" width="200" height="28" rx="14" fill="#38bdf8" fill-opacity="0.14" stroke="#38bdf8" stroke-width="1.2"/>
+  <text x="1010" y="40" text-anchor="middle" fill="#38bdf8" class="pill-text">SOURCE-VERIFIED SCHEMA</text>
+  <line x1="36" y1="80" x2="1110" y2="80" stroke="#1e293b" stroke-width="1"/>
+  <rect class="card" x="36" y="108" width="280" height="113" rx="10"/>
+  <rect x="36" y="108" width="280" height="32" rx="10" fill="#38bdf8" fill-opacity="0.14"/>
+  <text x="50" y="129" class="h2">accounts</text>
+  <text x="48" y="160" class="erd-pk">PK  account_id</text>
+  <text x="304" y="160" text-anchor="end" class="mono-dim">varchar(64)</text>
+  <text x="48" y="179" class="erd-col">    display_name</text>
+  <text x="304" y="179" text-anchor="end" class="mono-dim">varchar(120)</text>
+  <text x="48" y="198" class="erd-col">    created_at</text>
+  <text x="304" y="198" text-anchor="end" class="mono-dim">timestamptz</text><rect class="card" x="360" y="108" width="355" height="170" rx="10"/>
+  <rect x="360" y="108" width="355" height="32" rx="10" fill="#34d399" fill-opacity="0.14"/>
+  <text x="374" y="129" class="h2">devices</text>
+  <text x="372" y="160" class="erd-pk">PK  id</text>
+  <text x="703" y="160" text-anchor="end" class="mono-dim">uuid</text>
+  <text x="372" y="179" class="erd-fk">UK  device_id</text>
+  <text x="703" y="179" text-anchor="end" class="mono-dim">varchar(64)</text>
+  <text x="372" y="198" class="erd-fk">FK  account_id</text>
+  <text x="703" y="198" text-anchor="end" class="mono-dim">-> accounts.account_id</text>
+  <text x="372" y="217" class="erd-col">    public_key</text>
+  <text x="703" y="217" text-anchor="end" class="mono-dim">text (ECDSA SPKI)</text>
+  <text x="372" y="236" class="erd-col">    status</text>
+  <text x="703" y="236" text-anchor="end" class="mono-dim">ACTIVE|REVOKED|UNREG</text>
+  <text x="372" y="255" class="erd-col">    enrolled_at / revoked_at</text>
+  <text x="703" y="255" text-anchor="end" class="mono-dim">timestamptz</text><rect class="card" x="765" y="108" width="345" height="189" rx="10"/>
+  <rect x="765" y="108" width="345" height="32" rx="10" fill="#38bdf8" fill-opacity="0.14"/>
+  <text x="779" y="129" class="h2">auth_sessions</text>
+  <text x="777" y="160" class="erd-pk">PK  id</text>
+  <text x="1098" y="160" text-anchor="end" class="mono-dim">uuid</text>
+  <text x="777" y="179" class="erd-fk">UK  session_token</text>
+  <text x="1098" y="179" text-anchor="end" class="mono-dim">varchar(128)</text>
+  <text x="777" y="198" class="erd-fk">FK  account_id</text>
+  <text x="1098" y="198" text-anchor="end" class="mono-dim">-> accounts.account_id</text>
+  <text x="777" y="217" class="erd-fk">FK  device_id (nullable)</text>
+  <text x="1098" y="217" text-anchor="end" class="mono-dim">-> devices.id</text>
+  <text x="777" y="236" class="erd-col">    status</text>
+  <text x="1098" y="236" text-anchor="end" class="mono-dim">PENDING|APPROVED|USED</text>
+  <text x="777" y="255" class="erd-col">    browser_channel_token_hash</text>
+  <text x="1098" y="255" text-anchor="end" class="mono-dim">varchar(64)</text>
+  <text x="777" y="274" class="erd-col">    expires_at / consumed_at</text>
+  <text x="1098" y="274" text-anchor="end" class="mono-dim">timestamptz</text><rect class="card" x="36" y="390" width="290" height="151" rx="10"/>
+  <rect x="36" y="390" width="290" height="32" rx="10" fill="#38bdf8" fill-opacity="0.14"/>
+  <text x="50" y="411" class="h2">notes (AES-256-GCM)</text>
+  <text x="48" y="442" class="erd-pk">PK  id</text>
+  <text x="314" y="442" text-anchor="end" class="mono-dim">uuid</text>
+  <text x="48" y="461" class="erd-col">    owner_id</text>
+  <text x="314" y="461" text-anchor="end" class="mono-dim">varchar(64) (device_id)</text>
+  <text x="48" y="480" class="erd-col">    title_enc</text>
+  <text x="314" y="480" text-anchor="end" class="mono-dim">text (v1$b64)</text>
+  <text x="48" y="499" class="erd-col">    content_enc</text>
+  <text x="314" y="499" text-anchor="end" class="mono-dim">text (v1$b64)</text>
+  <text x="48" y="518" class="erd-col">    created_at / updated_at</text>
+  <text x="314" y="518" text-anchor="end" class="mono-dim">timestamptz</text><rect class="card" x="360" y="390" width="355" height="208" rx="10"/>
+  <rect x="360" y="390" width="355" height="32" rx="10" fill="#34d399" fill-opacity="0.14"/>
+  <text x="374" y="411" class="h2">assets (XChaCha20-Poly1305)</text>
+  <text x="372" y="442" class="erd-pk">PK  id</text>
+  <text x="703" y="442" text-anchor="end" class="mono-dim">uuid</text>
+  <text x="372" y="461" class="erd-fk">FK  device_id</text>
+  <text x="703" y="461" text-anchor="end" class="mono-dim">-> devices.device_id</text>
+  <text x="372" y="480" class="erd-fk">UK  storage_key</text>
+  <text x="703" y="480" text-anchor="end" class="mono-dim">varchar(100)</text>
+  <text x="372" y="499" class="erd-col">    nonce / sha256_hash</text>
+  <text x="703" y="499" text-anchor="end" class="mono-dim">varchar(64)</text>
+  <text x="372" y="518" class="erd-col">    integrity_status</text>
+  <text x="703" y="518" text-anchor="end" class="mono-dim">VERIFIED|TAMPERED</text>
+  <text x="372" y="537" class="erd-fk">FK  source_asset_id (self)</text>
+  <text x="703" y="537" text-anchor="end" class="mono-dim">-> assets.id</text>
+  <text x="372" y="556" class="erd-col">    derivative_type</text>
+  <text x="703" y="556" text-anchor="end" class="mono-dim">PNG_LSB / null</text>
+  <text x="372" y="575" class="erd-col">    watermark_id / stego_ver</text>
+  <text x="703" y="575" text-anchor="end" class="mono-dim">uuid / int</text><rect class="card" x="765" y="345" width="345" height="132" rx="10"/>
+  <rect x="765" y="345" width="345" height="32" rx="10" fill="#34d399" fill-opacity="0.14"/>
+  <text x="779" y="366" class="h2">audit_chain_heads</text>
+  <text x="777" y="397" class="erd-pk">PK  chain_id</text>
+  <text x="1098" y="397" text-anchor="end" class="mono-dim">varchar(64)</text>
+  <text x="777" y="416" class="erd-col">    last_sequence</text>
+  <text x="1098" y="416" text-anchor="end" class="mono-dim">bigint</text>
+  <text x="777" y="435" class="erd-col">    last_hash</text>
+  <text x="1098" y="435" text-anchor="end" class="mono-dim">varchar(64) hex</text>
+  <text x="777" y="454" class="erd-col">    updated_at</text>
+  <text x="1098" y="454" text-anchor="end" class="mono-dim">timestamptz</text><rect class="card" x="765" y="495" width="345" height="170" rx="10"/>
+  <rect x="765" y="495" width="345" height="32" rx="10" fill="#f59e0b" fill-opacity="0.14"/>
+  <text x="779" y="516" class="h2">audit_events (Append-Only)</text>
+  <text x="777" y="547" class="erd-pk">PK  event_id</text>
+  <text x="1098" y="547" text-anchor="end" class="mono-dim">uuid</text>
+  <text x="777" y="566" class="erd-fk">FK  chain_id</text>
+  <text x="1098" y="566" text-anchor="end" class="mono-dim">-> chain_heads.chain_id</text>
+  <text x="777" y="585" class="erd-fk">UK  sequence</text>
+  <text x="1098" y="585" text-anchor="end" class="mono-dim">bigint (chain,seq)</text>
+  <text x="777" y="604" class="erd-col">    event_type / result</text>
+  <text x="1098" y="604" text-anchor="end" class="mono-dim">varchar</text>
+  <text x="777" y="623" class="erd-col">    canonical_payload</text>
+  <text x="1098" y="623" text-anchor="end" class="mono-dim">bytea UTF-8</text>
+  <text x="777" y="642" class="erd-col">    prev_hash / event_hash</text>
+  <text x="1098" y="642" text-anchor="end" class="mono-dim">varchar(64) SHA-256</text><path class="arrow-blue" d="M 316 160 L 360 160" marker-end="url(#m-blue)"/><path class="arrow" d="M 715 170 L 765 170" marker-end="url(#m-emerald)"/><path class="arrow" d="M 520 296 L 520 390" marker-end="url(#m-emerald)"/><path class="arrow-muted" d="M 410 296 L 190 390" marker-end="url(#m-muted)"/><path class="arrow" d="M 940 465 L 940 495" marker-end="url(#m-emerald)"/><path class="arrow-amber" d="M 715 565 C 745 565 745 605 715 605" marker-end="url(#m-amber)"/><text x="415" y="348" class="mono-dim">1:N assets &amp; partial idx:</text><text x="415" y="365" class="mono-dim">uq_devices_one_registered_per_account</text>
+  <text x="36" y="726" class="mono-dim">IPGuard Source-Verified Visual Documentation  |  github.com/Abhiprayaa29/IPGuard</text>
+</svg>

@@ -1,7 +1,6 @@
-import { Database, MonitorSmartphone, Server } from 'lucide-react'
-
+import { Database, Lock, MonitorSmartphone, Server, ShieldCheck } from 'lucide-react'
 import { StatusCard } from '../../components/ui/StatusCard'
-import type { SystemStatusSnapshot, UiStatus } from '../../types/system'
+import type { ProbeState, SystemStatusSnapshot, UiStatus } from '../../types/system'
 import { formatLatency } from '../../utils/format'
 
 interface ServiceOverviewProps {
@@ -9,111 +8,172 @@ interface ServiceOverviewProps {
   isLoading: boolean
 }
 
-function resolveStatus(
+function resolveProbeStatus(
   isLoading: boolean,
-  state: 'online' | 'offline' | undefined,
+  snapshot: SystemStatusSnapshot | undefined,
+  state: ProbeState | undefined,
 ): UiStatus {
-  if (isLoading) {
-    return 'checking'
-  }
+  if (isLoading) return 'checking'
+  if (!snapshot || !state) return 'unknown'
+  return state
+}
 
-  return state ?? 'offline'
+function resolveCompositeServiceStatus(
+  isLoading: boolean,
+  snapshot: SystemStatusSnapshot | undefined,
+): UiStatus {
+  if (isLoading) return 'checking'
+  if (!snapshot) return 'unknown'
+  if (snapshot.health.state === 'offline') return 'offline'
+  if (snapshot.database.state === 'offline' || snapshot.overview.state === 'offline') {
+    return 'degraded'
+  }
+  return 'online'
 }
 
 export function ServiceOverview({
   snapshot,
   isLoading,
 }: ServiceOverviewProps) {
-  const backendStatus = resolveStatus(isLoading, snapshot?.health.state)
-  const databaseStatus = resolveStatus(isLoading, snapshot?.database.state)
+  const apiStatus = resolveProbeStatus(isLoading, snapshot, snapshot?.health.state)
+  const dbStatus = resolveProbeStatus(isLoading, snapshot, snapshot?.database.state)
+  const overviewStatus = resolveProbeStatus(
+    isLoading,
+    snapshot,
+    snapshot?.overview.state,
+  )
+  const vaultServiceStatus = resolveCompositeServiceStatus(isLoading, snapshot)
 
   return (
-    <section aria-labelledby="service-probes-heading">
-      <div className="mb-5 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <p className="text-[10px] font-semibold uppercase tracking-[0.24em] text-ip-gold-400/80">
-            Service probes
-          </p>
-          <h2
-            id="service-probes-heading"
-            className="mt-2 font-display text-2xl font-semibold tracking-[-0.02em] text-white"
-          >
-            Core readiness layers
-          </h2>
-        </div>
-        <p className="max-w-md text-xs leading-5 text-slate-500 sm:text-right">
-          Each layer is checked independently so a database issue cannot hide a
-          healthy API or client application.
+    <section aria-labelledby="service-probes-heading" className="space-y-3">
+      <div className="flex flex-col gap-1 sm:flex-row sm:items-baseline sm:justify-between">
+        <h2
+          id="service-probes-heading"
+          className="text-sm font-semibold text-zinc-100"
+        >
+          Service Probes
+        </h2>
+        <p className="text-xs text-zinc-500">
+          Statuses reflect live HTTP and PostgreSQL probe responses only.
         </p>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-3">
-        <StatusCard
-          icon={MonitorSmartphone}
-          eyebrow="Client layer"
-          title="Frontend"
-          description="The React application is loaded, routed, and able to reach its local API configuration."
-          status="online"
-          metrics={[
-            { label: 'Runtime', value: 'React + Vite' },
-            { label: 'Route', value: '/system-status' },
-          ]}
-          style={{ animationDelay: '80ms' }}
-        />
+      <div className="grid gap-4 md:grid-cols-2">
         <StatusCard
           icon={Server}
-          eyebrow="Control layer"
+          eyebrow="Control Plane"
           title="Backend API"
-          description="FastAPI health metadata confirms that the API process is available on the configured endpoint."
-          status={backendStatus}
+          description="FastAPI HTTP process readiness endpoint (/health)."
+          status={apiStatus}
           note={
-            !isLoading && backendStatus === 'offline'
-              ? (snapshot?.health.error ?? 'The API did not respond.')
+            !isLoading && apiStatus === 'offline'
+              ? (snapshot?.health.error ?? 'Backend API did not respond.')
               : null
           }
           metrics={[
             {
-              label: 'Service',
-              value: snapshot?.health.data?.service ?? 'ipguard-api',
+              label: 'Service ID',
+              value: snapshot?.health.data?.service ?? 'Unknown',
             },
             {
-              label: 'Latency',
+              label: 'Round-trip',
               value:
-                backendStatus === 'online'
+                apiStatus === 'online'
                   ? formatLatency(snapshot?.health.latencyMs)
-                  : 'Not available',
+                  : 'Unavailable',
             },
           ]}
-          style={{ animationDelay: '160ms' }}
         />
+
         <StatusCard
           icon={Database}
-          eyebrow="Persistence layer"
+          eyebrow="Persistence"
           title="PostgreSQL"
-          description="The backend executes a real database query and reports the measured round-trip response."
-          status={databaseStatus}
+          description="Live database connection and SQL query health probe (/health/db)."
+          status={dbStatus}
           note={
-            !isLoading && databaseStatus === 'offline'
-              ? (snapshot?.database.error ??
-                'PostgreSQL did not respond to the health probe.')
+            !isLoading && dbStatus === 'offline'
+              ? (snapshot?.database.error ?? 'PostgreSQL probe failed.')
               : null
           }
           metrics={[
             {
               label: 'Engine',
-              value: snapshot?.database.data?.database ?? 'PostgreSQL',
+              value: snapshot?.database.data?.database ?? 'Unknown',
+            },
+            {
+              label: 'Query Latency',
+              value:
+                dbStatus === 'online'
+                  ? formatLatency(snapshot?.database.latencyMs)
+                  : 'Unavailable',
+            },
+          ]}
+        />
+
+        <StatusCard
+          icon={ShieldCheck}
+          eyebrow="Identity & Lifecycle"
+          title="Authentication & Device Service"
+          description="Account slot tracking, QR challenge sessions, and audit chain summary (/api/v1/system/overview)."
+          status={overviewStatus}
+          note={
+            !isLoading && overviewStatus === 'offline'
+              ? (snapshot?.overview.error ?? 'Overview endpoint unavailable.')
+              : null
+          }
+          metrics={[
+            {
+              label: 'Device Slot',
+              value: snapshot?.overview.data
+                ? `${snapshot.overview.data.registered_slots}/${snapshot.overview.data.max_slots} (${snapshot.overview.data.current_device_status})`
+                : 'Unknown',
             },
             {
               label: 'Latency',
               value:
-                databaseStatus === 'online'
-                  ? formatLatency(snapshot?.database.latencyMs)
-                  : 'Not available',
+                overviewStatus === 'online'
+                  ? formatLatency(snapshot?.overview.latencyMs)
+                  : 'Unavailable',
             },
           ]}
-          style={{ animationDelay: '240ms' }}
+        />
+
+        <StatusCard
+          icon={Lock}
+          eyebrow="Cryptographic Storage"
+          title="Asset & Steganography Service"
+          description="Encrypted Asset Vault, Secure Notes, and LSB watermark pipeline availability."
+          status={vaultServiceStatus}
+          note={
+            !isLoading && vaultServiceStatus === 'degraded'
+              ? 'Database or overview telemetry reported degraded connectivity.'
+              : null
+          }
+          metrics={[
+            {
+              label: 'Cipher Suite',
+              value: 'AES-256-GCM / XChaCha20-Poly1305',
+            },
+            {
+              label: 'Watermark Signature',
+              value: 'ECDSA P-256 + SHA-256 LSB',
+            },
+          ]}
         />
       </div>
+
+      <StatusCard
+        icon={MonitorSmartphone}
+        eyebrow="Web Client"
+        title="Browser Console"
+        description="React 19 + TypeScript single-page console running in the current browser session."
+        status="online"
+        metrics={[
+          { label: 'Runtime', value: 'React 19 + Vite' },
+          { label: 'Active Probe Route', value: '/system-status' },
+        ]}
+      />
     </section>
   )
 }

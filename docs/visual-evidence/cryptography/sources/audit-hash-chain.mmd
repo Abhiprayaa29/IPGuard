@@ -1,0 +1,5 @@
+flowchart LR
+  Gen["Genesis Seed: sequence=1, prev_hash=0000...0000 (64 zeros)"] --> E1["Event #1: canonical_payload UTF-8 -> SHA-256(prev || domain || payload)"]
+  E1 --> E2["Event #2 (Row Lock AuditChainHead FOR UPDATE) -> SHA-256 Chain"]
+  E2 --> EN["Event #N -> Updated Chain Head (VERIFIED in M4: 818 events across 117 chains)"]
+  EN -.-> M5["PLANNED M5: Merkle Tree Batch + External EVM Anchor (NOT IMPLEMENTED)"]

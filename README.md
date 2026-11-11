@@ -173,6 +173,24 @@ flowchart TD
 
 ---
 
+## Visual Documentation
+
+Complete, privacy-audited visual evidence covering the redesigned Web Console, physical Android Authenticator (`SM-A546E`), source-verified architecture & cryptography diagrams, and live verification outputs is organized in [`docs/visual-evidence/`](docs/visual-evidence/README.md):
+
+| System Architecture | Web Security Overview |
+| :---: | :---: |
+| ![System Architecture](docs/visual-evidence/architecture/system-architecture.png) | ![Web Security Overview](docs/visual-evidence/web/overview-desktop.png) |
+| *Implemented client, TEE keystore, FastAPI services, encrypted vault & planned M5 boundary.* | *Redesigned Web Console overview showing `1/1` device slot, health telemetry & audit chain.* |
+
+| Device Lifecycle Management | Digital Asset Vault | Android Authenticator (`SM-A546E`) |
+| :---: | :---: | :---: |
+| ![Device Management](docs/visual-evidence/web/device-management-active.png) | ![Asset Vault](docs/visual-evidence/web/asset-vault.png) | ![Android Authenticator](docs/visual-evidence/android/authenticator-home.png) |
+| *Single-device hardware binding (`ACTIVE` / `REVOKED` / `UNREGISTERED`).* | *XChaCha20-Poly1305 encrypted files & `PNG_LSB` watermark lineage.* | *Physical Galaxy A54 5G (`Android 16`) authenticator home & posture.* |
+
+👉 [**View Complete Visual Evidence Catalog (`docs/visual-evidence/README.md`)**](docs/visual-evidence/README.md) · 🔒 [**Privacy Review (`docs/visual-evidence/PRIVACY_REVIEW.md`)**](docs/visual-evidence/PRIVACY_REVIEW.md)
+
+---
+
 ## Screenshots & Visual Showcase
 
 All screenshots were captured directly during automated Playwright browser acceptance testing on Chromium (1366x860) against live services:

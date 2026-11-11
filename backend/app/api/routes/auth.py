@@ -1,13 +1,23 @@
-from fastapi import APIRouter, Depends, Header, Request, status
+from collections import defaultdict
+import hashlib
+import logging
+import secrets
+from threading import Lock
+import time
+
+from fastapi import APIRouter, Depends, Header, Query, Request, status
 from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_authenticated_device
 from app.core.config import Settings, get_settings
 from app.core.errors import AppError
 from app.db.session import get_db
+from app.models.auth import DEFAULT_ACCOUNT_ID, Device
 from app.schemas.auth import (
+    DeviceLifecycleSummaryResponse,
     DeviceRegisterRequest,
     DeviceResponse,
+    DeviceRestoreRequest,
     DeviceRevokeRequest,
     DeviceStatusCheckResponse,
     DeviceUnregisterRequest,
@@ -21,16 +31,59 @@ from app.schemas.common import ErrorResponse
 from app.services.auth import (
     create_auth_session,
     get_auth_session_status,
+    get_device_lifecycle_summary,
     get_device_status,
     list_devices,
     mark_session_scanned,
     register_device,
+    restore_device,
     revoke_device,
     unregister_device,
     verify_session_signature,
 )
 
 router = APIRouter()
+security_logger = logging.getLogger("ipguard.security")
+
+_RECOVERY_WINDOW_SECONDS = 60.0
+_RECOVERY_MAX_FAILURES = 5
+_recovery_failures: dict[str, list[float]] = defaultdict(list)
+_recovery_lock = Lock()
+
+
+def _verify_recovery_secret(presented: str, settings: Settings) -> bool:
+    digest_cfg = (settings.account_recovery_key_sha256 or "").strip().lower()
+    if digest_cfg:
+        presented_digest = hashlib.sha256(presented.encode("utf-8")).hexdigest()
+        return secrets.compare_digest(presented_digest, digest_cfg)
+    expected = settings.effective_account_recovery_key
+    return bool(expected) and secrets.compare_digest(presented, expected)
+
+
+def _check_recovery_rate_limit(bucket_key: str) -> None:
+    now = time.monotonic()
+    with _recovery_lock:
+        recent = [ts for ts in _recovery_failures[bucket_key] if now - ts < _RECOVERY_WINDOW_SECONDS]
+        _recovery_failures[bucket_key] = recent
+        if len(recent) >= _RECOVERY_MAX_FAILURES:
+            raise AppError(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                code="recovery_rate_limited",
+                message="Too many failed recovery authorization attempts. Wait 60 seconds and retry.",
+            )
+
+
+def _record_recovery_failure(bucket_key: str) -> None:
+    now = time.monotonic()
+    with _recovery_lock:
+        recent = [ts for ts in _recovery_failures[bucket_key] if now - ts < _RECOVERY_WINDOW_SECONDS]
+        recent.append(now)
+        _recovery_failures[bucket_key] = recent
+
+
+def _clear_recovery_failures(bucket_key: str) -> None:
+    with _recovery_lock:
+        _recovery_failures.pop(bucket_key, None)
 
 
 def require_dev_admin_access(
@@ -38,10 +91,8 @@ def require_dev_admin_access(
     settings: Settings = Depends(get_settings),
 ) -> None:
     """
-    Restrict device listing to explicitly isolated development environments
+    Restrict global multi-row device listing to isolated development environments
     with mandatory administrative key authentication.
-    - In production environments, access is strictly forbidden (HTTP 403).
-    - In development and test environments, missing or invalid key returns HTTP 401.
     """
     if settings.app_env == "production":
         raise AppError(
@@ -50,7 +101,7 @@ def require_dev_admin_access(
             message="Device registry inspection is strictly disabled in production environments.",
         )
 
-    if not x_dev_admin_key or x_dev_admin_key != settings.dev_admin_key:
+    if not x_dev_admin_key or not secrets.compare_digest(x_dev_admin_key, settings.dev_admin_key):
         raise AppError(
             status_code=status.HTTP_401_UNAUTHORIZED,
             code="unauthorized_admin_access",
@@ -58,37 +109,150 @@ def require_dev_admin_access(
         )
 
 
-def require_device_action_access(
-    authorization: str | None = Header(default=None, alias="Authorization"),
-    x_dev_admin_key: str | None = Header(default=None, alias="X-Dev-Admin-Key"),
-    db: Session = Depends(get_db),
-    settings: Settings = Depends(get_settings),
-) -> None:
-    """
-    Authorize device lifecycle modifications (revoke, unregister).
-    1. If X-Dev-Admin-Key is provided, it must match settings.dev_admin_key.
-    2. If Bearer token is provided, it must be an active authenticated session.
-    3. In production, unauthenticated requests are strictly rejected with HTTP 401.
-    """
+def _has_valid_recovery_or_dev_admin(
+    *,
+    x_dev_admin_key: str | None,
+    x_account_recovery_key: str | None,
+    settings: Settings,
+) -> bool:
+    if x_account_recovery_key:
+        try:
+            _ = settings.effective_account_recovery_key
+        except ValueError as exc:
+            raise AppError(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                code="recovery_key_not_configured",
+                message="Out-of-band account recovery is not configured on this server.",
+            ) from exc
+        if not _verify_recovery_secret(x_account_recovery_key, settings):
+            raise AppError(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                code="invalid_recovery_authorization",
+                message="Invalid account recovery authorization key.",
+            )
+        return True
+
     if x_dev_admin_key:
-        if x_dev_admin_key != settings.dev_admin_key:
+        if settings.app_env == "production":
+            raise AppError(
+                status_code=status.HTTP_403_FORBIDDEN,
+                code="dev_admin_key_disabled_in_production",
+                message="Development administrative key is disabled in production.",
+            )
+        if not secrets.compare_digest(x_dev_admin_key, settings.dev_admin_key):
             raise AppError(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 code="unauthorized_admin_access",
                 message="Invalid X-Dev-Admin-Key provided.",
             )
-        return
+        return True
+
+    return False
+
+
+def require_device_action_access(
+    authorization: str | None = Header(default=None, alias="Authorization"),
+    x_dev_admin_key: str | None = Header(default=None, alias="X-Dev-Admin-Key"),
+    x_account_recovery_key: str | None = Header(default=None, alias="X-Account-Recovery-Key"),
+    db: Session = Depends(get_db),
+    settings: Settings = Depends(get_settings),
+) -> Device | None:
+    """
+    Authorize device lifecycle queries and mutations (summary, revoke, unregister).
+    Returns the authenticated caller Device when authorized via Bearer token so services
+    enforce account-level ownership isolation, or None when authorized via recovery/dev admin key.
+    """
+    if _has_valid_recovery_or_dev_admin(
+        x_dev_admin_key=x_dev_admin_key,
+        x_account_recovery_key=x_account_recovery_key,
+        settings=settings,
+    ):
+        return None
 
     if authorization and authorization.startswith("Bearer "):
-        get_current_authenticated_device(authorization=authorization, db=db)
-        return
+        return get_current_authenticated_device(authorization=authorization, db=db)
 
     if settings.app_env == "production":
         raise AppError(
             status_code=status.HTTP_401_UNAUTHORIZED,
             code="unauthorized_admin_access",
-            message="Valid X-Dev-Admin-Key or active authenticated Bearer token is required.",
+            message="Valid authenticated Bearer token or account recovery authorization is required.",
         )
+    return None
+
+
+def require_restore_access_authorization(
+    device_id: str,
+    request: Request,
+    authorization: str | None = Header(default=None, alias="Authorization"),
+    x_dev_admin_key: str | None = Header(default=None, alias="X-Dev-Admin-Key"),
+    x_account_recovery_key: str | None = Header(default=None, alias="X-Account-Recovery-Key"),
+    settings: Settings = Depends(get_settings),
+) -> None:
+    """
+    Fail-closed authorization guard for restoring a REVOKED device.
+    Enforces rate limiting, attempt logging with header redaction, and blocks self-restore via Bearer token.
+    """
+    client_ip = request.client.host if request.client else "unknown"
+    bucket_key = f"{client_ip}:{device_id}"
+
+    try:
+        _check_recovery_rate_limit(bucket_key)
+    except AppError:
+        security_logger.warning(
+            "recovery_attempt device_id=%s client_ip=%s outcome=RATE_LIMITED header_redacted=true",
+            device_id,
+            client_ip,
+        )
+        raise
+
+    try:
+        if _has_valid_recovery_or_dev_admin(
+            x_dev_admin_key=x_dev_admin_key,
+            x_account_recovery_key=x_account_recovery_key,
+            settings=settings,
+        ):
+            _clear_recovery_failures(bucket_key)
+            security_logger.info(
+                "recovery_attempt device_id=%s client_ip=%s outcome=AUTHORIZED header_redacted=true",
+                device_id,
+                client_ip,
+            )
+            return
+    except AppError as exc:
+        _record_recovery_failure(bucket_key)
+        security_logger.warning(
+            "recovery_attempt device_id=%s client_ip=%s outcome=REJECTED code=%s header_redacted=true",
+            device_id,
+            client_ip,
+            exc.code,
+        )
+        raise
+
+    if authorization and authorization.startswith("Bearer "):
+        _record_recovery_failure(bucket_key)
+        security_logger.warning(
+            "recovery_attempt device_id=%s client_ip=%s outcome=REJECTED_BEARER_SELF_RESTORE header_redacted=true",
+            device_id,
+            client_ip,
+        )
+        raise AppError(
+            status_code=status.HTTP_403_FORBIDDEN,
+            code="recovery_authorization_required",
+            message="Device self-restoration via Bearer session token is forbidden. Valid recovery authorization is required.",
+        )
+
+    _record_recovery_failure(bucket_key)
+    security_logger.warning(
+        "recovery_attempt device_id=%s client_ip=%s outcome=REJECTED_MISSING_AUTH header_redacted=true",
+        device_id,
+        client_ip,
+    )
+    raise AppError(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        code="recovery_authorization_required",
+        message="Valid X-Account-Recovery-Key or administrative recovery authorization is required to restore access.",
+    )
 
 
 @router.post(
@@ -98,14 +262,31 @@ def require_device_action_access(
     summary="Create authentication or enrollment session challenge",
     responses={
         400: {"model": ErrorResponse, "description": "Invalid session parameters or untrusted origin."},
+        403: {"model": ErrorResponse, "description": "Untrusted client-supplied account identifier."},
     },
 )
 def create_session(
     body: SessionCreateRequest,
     request: Request,
     db: Session = Depends(get_db),
+    settings: Settings = Depends(get_settings),
     origin: str | None = Header(default=None),
+    x_dev_admin_key: str | None = Header(default=None, alias="X-Dev-Admin-Key"),
+    x_account_recovery_key: str | None = Header(default=None, alias="X-Account-Recovery-Key"),
 ) -> SessionResponse:
+    requested_account = (body.account_id or "").strip()
+    if requested_account and requested_account != DEFAULT_ACCOUNT_ID:
+        if not _has_valid_recovery_or_dev_admin(
+            x_dev_admin_key=x_dev_admin_key,
+            x_account_recovery_key=x_account_recovery_key,
+            settings=settings,
+        ):
+            raise AppError(
+                status_code=status.HTTP_403_FORBIDDEN,
+                code="untrusted_account_identifier",
+                message="Custom account_id requires server-trusted provisioning or administrative authorization.",
+            )
+
     candidate_origin = body.origin or origin
     client_ip = request.client.host if request.client else None
     client_ua = request.headers.get("user-agent")
@@ -194,7 +375,7 @@ def verify_session(
         400: {"model": ErrorResponse, "description": "Invalid enrollment challenge or key."},
         401: {"model": ErrorResponse, "description": "Cryptographic signature verification failed."},
         404: {"model": ErrorResponse, "description": "Enrollment session not found."},
-        409: {"model": ErrorResponse, "description": "Device or public key already registered."},
+        409: {"model": ErrorResponse, "description": "Account or device already has a registered authenticator."},
     },
 )
 def register_new_device(
@@ -202,6 +383,49 @@ def register_new_device(
     db: Session = Depends(get_db),
 ) -> DeviceResponse:
     return register_device(db=db, request=body)
+
+
+@router.get(
+    "/devices/summary",
+    response_model=DeviceLifecycleSummaryResponse,
+    summary="Get single-device account registration summary and unregistered history",
+    responses={
+        401: {"model": ErrorResponse, "description": "Unauthorized."},
+        403: {"model": ErrorResponse, "description": "Cross-account inspection forbidden."},
+    },
+)
+def get_account_device_summary(
+    account_id: str | None = Query(default=None, max_length=64),
+    x_dev_admin_key: str | None = Header(default=None, alias="X-Dev-Admin-Key"),
+    x_account_recovery_key: str | None = Header(default=None, alias="X-Account-Recovery-Key"),
+    db: Session = Depends(get_db),
+    settings: Settings = Depends(get_settings),
+    caller_device: Device | None = Depends(require_device_action_access),
+) -> DeviceLifecycleSummaryResponse:
+    requested_account = (account_id or "").strip()
+    if caller_device is not None:
+        if requested_account and requested_account != caller_device.account_id:
+            raise AppError(
+                status_code=status.HTTP_403_FORBIDDEN,
+                code="cross_owner_forbidden",
+                message="Cannot inspect device lifecycle summary for another account.",
+            )
+        target_account = caller_device.account_id
+    else:
+        has_privileged_key = _has_valid_recovery_or_dev_admin(
+            x_dev_admin_key=x_dev_admin_key,
+            x_account_recovery_key=x_account_recovery_key,
+            settings=settings,
+        )
+        if requested_account and requested_account != DEFAULT_ACCOUNT_ID and not has_privileged_key:
+            raise AppError(
+                status_code=status.HTTP_403_FORBIDDEN,
+                code="cross_owner_forbidden",
+                message="Unauthenticated callers cannot inspect non-default account summaries.",
+            )
+        target_account = requested_account or DEFAULT_ACCOUNT_ID
+
+    return get_device_lifecycle_summary(db=db, account_id=target_account)
 
 
 @router.get(
@@ -219,27 +443,59 @@ def check_device_enrollment_status(
 @router.post(
     "/devices/{device_id}/revoke",
     response_model=DeviceResponse,
-    summary="Revoke an enrolled authenticator device",
+    summary="Temporarily revoke an enrolled authenticator device",
     responses={
-        401: {"model": ErrorResponse, "description": "Unauthorized. Dev admin key or active session token required."},
+        401: {"model": ErrorResponse, "description": "Unauthorized."},
+        403: {"model": ErrorResponse, "description": "Cross-owner modification forbidden."},
         404: {"model": ErrorResponse, "description": "Device not found."},
+        409: {"model": ErrorResponse, "description": "Unregistered device cannot be revoked."},
     },
 )
 def revoke_enrolled_device(
     device_id: str,
     body: DeviceRevokeRequest | None = None,
     db: Session = Depends(get_db),
-    _: None = Depends(require_device_action_access),
+    caller_device: Device | None = Depends(require_device_action_access),
 ) -> DeviceResponse:
-    return revoke_device(db=db, device_id=device_id)
+    return revoke_device(
+        db=db,
+        device_id=device_id,
+        caller_device=caller_device,
+        reason=body.reason if body else None,
+    )
+
+
+@router.post(
+    "/devices/{device_id}/restore",
+    response_model=DeviceResponse,
+    summary="Restore access for a REVOKED authenticator device without creating a new key",
+    responses={
+        401: {"model": ErrorResponse, "description": "Recovery authorization required."},
+        403: {"model": ErrorResponse, "description": "Self-restoration forbidden."},
+        404: {"model": ErrorResponse, "description": "Device not found."},
+        409: {"model": ErrorResponse, "description": "Unregistered device cannot be restored."},
+    },
+)
+def restore_revoked_device(
+    device_id: str,
+    body: DeviceRestoreRequest | None = None,
+    db: Session = Depends(get_db),
+    _: None = Depends(require_restore_access_authorization),
+) -> DeviceResponse:
+    return restore_device(
+        db=db,
+        device_id=device_id,
+        reason=body.reason if body else None,
+    )
 
 
 @router.post(
     "/devices/{device_id}/unregister",
     response_model=DeviceResponse,
-    summary="Explicitly unregister a device, releasing its enrollment slot",
+    summary="Explicitly unregister a device, releasing the account's device slot",
     responses={
-        401: {"model": ErrorResponse, "description": "Unauthorized. Dev admin key or active session token required."},
+        401: {"model": ErrorResponse, "description": "Unauthorized."},
+        403: {"model": ErrorResponse, "description": "Cross-owner modification forbidden."},
         404: {"model": ErrorResponse, "description": "Device not found."},
     },
 )
@@ -247,21 +503,26 @@ def unregister_enrolled_device(
     device_id: str,
     body: DeviceUnregisterRequest | None = None,
     db: Session = Depends(get_db),
-    _: None = Depends(require_device_action_access),
+    caller_device: Device | None = Depends(require_device_action_access),
 ) -> DeviceResponse:
-    return unregister_device(db=db, device_id=device_id)
+    return unregister_device(
+        db=db,
+        device_id=device_id,
+        caller_device=caller_device,
+        reason=body.reason if body else None,
+    )
 
 
 @router.get(
     "/devices",
     response_model=list[DeviceResponse],
-    summary="List all enrolled devices",
+    summary="List all registered devices (non-production admin)",
     responses={
         401: {"model": ErrorResponse, "description": "Unauthorized. Administrative key required."},
-        403: {"model": ErrorResponse, "description": "Forbidden. Disabled in production."},
+        403: {"model": ErrorResponse, "description": "Forbidden. Endpoint disabled in production."},
     },
 )
-def get_all_devices(
+def get_registered_devices(
     db: Session = Depends(get_db),
     _: None = Depends(require_dev_admin_access),
 ) -> list[DeviceResponse]:

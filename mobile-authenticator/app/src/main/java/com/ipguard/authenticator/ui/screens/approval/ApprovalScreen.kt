@@ -58,6 +58,7 @@ fun ApprovalScreen(
     val isEnrollment = activeSession.payload?.type == QrSessionType.ENROLLMENT
     val hasLiveSession = activeSession.payload != null
     val isProcessing = faceGate.status == FaceGateStatus.AUTHENTICATING ||
+        activeSession.step == AuthFlowStep.AWAITING_DEVICE_AUTHENTICATION ||
         activeSession.step == AuthFlowStep.SUBMITTING_BACKEND
 
     val eyebrow = if (isEnrollment) "ENROLLMENT APPROVAL" else "SECURITY AUTHORIZATION"

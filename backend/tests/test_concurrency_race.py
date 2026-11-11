@@ -48,13 +48,19 @@ def test_concurrent_verification_exact_single_winner() -> None:
     - The other request must be rejected (HTTP 400, session_already_consumed).
     - Database state must remain consistent with exactly one APPROVED session.
     """
-    # 1. Enroll device
-    enroll_sess = client.post("/api/v1/auth/sessions", json={"session_type": "ENROLLMENT"}).json()
+    # 1. Enroll device under isolated test account
+    test_account = f"acct-race-{uuid.uuid4().hex[:8]}"
+    admin_headers = {"X-Dev-Admin-Key": "ipguard-dev-admin-secret-key"}
+    enroll_sess = client.post(
+        "/api/v1/auth/sessions",
+        headers=admin_headers,
+        json={"session_type": "ENROLLMENT", "account_id": test_account},
+    ).json()
     priv, b64_pub = _generate_p256_keypair()
     device_id = f"concurrent-dev-{uuid.uuid4().hex[:8]}"
     qr_enr = enroll_sess["qr_payload"]
     enr_payload = build_canonical_payload(qr_enr["session_token"], qr_enr["nonce"], qr_enr["origin"], qr_enr["timestamp"])
-    client.post(
+    reg_res = client.post(
         "/api/v1/auth/devices/register",
         json={
             "session_token": enroll_sess["session_token"],
@@ -67,11 +73,13 @@ def test_concurrent_verification_exact_single_winner() -> None:
             "signature": _sign(priv, enr_payload),
         },
     )
+    assert reg_res.status_code == 201, reg_res.text
 
-    # 2. Create AUTHENTICATION session
+    # 2. Create AUTHENTICATION session bound to the same test account
     auth_sess = client.post(
         "/api/v1/auth/sessions",
-        json={"session_type": "AUTHENTICATION"},
+        headers=admin_headers,
+        json={"session_type": "AUTHENTICATION", "account_id": test_account},
     ).json()
     token = auth_sess["session_token"]
     qr = auth_sess["qr_payload"]
@@ -131,7 +139,11 @@ def test_concurrent_device_registration_single_winner() -> None:
     - Exactly one registration succeeds (HTTP 201).
     - The other is rejected (HTTP 400, session_already_consumed).
     """
-    enroll_sess = client.post("/api/v1/auth/sessions", json={"session_type": "ENROLLMENT"}).json()
+    enroll_sess = client.post(
+        "/api/v1/auth/sessions",
+        headers={"X-Dev-Admin-Key": "ipguard-dev-admin-secret-key"},
+        json={"session_type": "ENROLLMENT", "account_id": f"acct-same-sess-{uuid.uuid4().hex[:8]}"},
+    ).json()
     token = enroll_sess["session_token"]
     qr = enroll_sess["qr_payload"]
 
@@ -170,3 +182,57 @@ def test_concurrent_device_registration_single_winner() -> None:
     assert len(failures) == concurrency - 1
     for fail in failures:
         assert fail[1]["error"]["code"] == "session_already_consumed"
+
+
+def test_concurrent_enrollment_same_account_single_winner() -> None:
+    """
+    Phase 5.3 Concurrency Protection: Two concurrent enrollment attempts with DISTINCT
+    enrollment sessions targeting the SAME account_id must produce exact single winner (201)
+    and reject rivals (409 DEVICE_ALREADY_REGISTERED) via Account FOR UPDATE lock + partial unique index.
+    """
+    target_account = f"acct-concurrent-{uuid.uuid4().hex[:8]}"
+    sessions = [
+        client.post(
+            "/api/v1/auth/sessions",
+            headers={"X-Dev-Admin-Key": "ipguard-dev-admin-secret-key"},
+            json={"session_type": "ENROLLMENT", "account_id": target_account},
+        ).json()
+        for _ in range(3)
+    ]
+
+    def send_distinct_enrollment(idx: int) -> tuple[int, dict]:
+        sess = sessions[idx]
+        qr = sess["qr_payload"]
+        priv, b64_pub = _generate_p256_keypair()
+        payload = build_canonical_payload(
+            sess["session_token"], qr["nonce"], qr["origin"], qr["timestamp"]
+        )
+        t_client = TestClient(app)
+        res = t_client.post(
+            "/api/v1/auth/devices/register",
+            json={
+                "session_token": sess["session_token"],
+                "device_id": f"race-phone-{idx}-{uuid.uuid4().hex[:6]}",
+                "device_name": f"Race Phone {idx}",
+                "model": "SM-A546E",
+                "android_version": "16",
+                "public_key_x509": b64_pub,
+                "canonical_payload": payload,
+                "signature": _sign(priv, payload),
+            },
+        )
+        return res.status_code, res.json()
+
+    results = []
+    with ThreadPoolExecutor(max_workers=3) as executor:
+        futures = [executor.submit(send_distinct_enrollment, i) for i in range(3)]
+        for f in as_completed(futures):
+            results.append(f.result())
+
+    created = [r for r in results if r[0] == 201]
+    conflicts = [r for r in results if r[0] == 409]
+
+    assert len(created) == 1, f"Expected exact 1 account winner, got: {results}"
+    assert len(conflicts) == 2, f"Expected 2 conflicts, got: {results}"
+    for c in conflicts:
+        assert c[1]["error"]["code"] == "DEVICE_ALREADY_REGISTERED"

@@ -49,11 +49,20 @@ def _sign_payload(private_key: ec.EllipticCurvePrivateKey, payload: str) -> str:
     return base64.b64encode(signature_bytes).decode("ascii")
 
 
-def _enroll_device(device_id: str, device_name: str = "Test Phone") -> tuple[dict, ec.EllipticCurvePrivateKey, str]:
+def _enroll_device(
+    device_id: str,
+    device_name: str = "Test Phone",
+    account_id: str | None = None,
+) -> tuple[dict, ec.EllipticCurvePrivateKey, str]:
+    sess_body: dict[str, str] = {"session_type": "ENROLLMENT"}
+    headers = {"Origin": "http://localhost:5173"}
+    if account_id:
+        sess_body["account_id"] = account_id
+        headers["X-Dev-Admin-Key"] = "ipguard-dev-admin-secret-key"
     session_res = client.post(
         "/api/v1/auth/sessions",
-        json={"session_type": "ENROLLMENT"},
-        headers={"Origin": "http://localhost:5173"},
+        json=sess_body,
+        headers=headers,
     ).json()
     priv_key, pub_b64 = _generate_p256_keypair()
 
@@ -82,14 +91,19 @@ def _enroll_device(device_id: str, device_name: str = "Test Phone") -> tuple[dic
     return reg_res, priv_key, pub_b64
 
 
-@pytest.fixture(autouse=True)
-def cleanup_test_data() -> None:
-    yield
+def _wipe_lifecycle_tables() -> None:
     with SessionLocal() as db:
         db.query(Note).delete()
         db.query(AuthSession).delete()
         db.query(Device).delete()
         db.commit()
+
+
+@pytest.fixture(autouse=True)
+def cleanup_test_data() -> None:
+    _wipe_lifecycle_tables()
+    yield
+    _wipe_lifecycle_tables()
 
 
 def test_1_fresh_device_can_register() -> None:
@@ -158,12 +172,20 @@ def test_3_same_public_key_cannot_create_duplicate_active_registration() -> None
     assert err["code"] == "DEVICE_ALREADY_REGISTERED"
 
 
-def test_4_different_devices_can_register_independently() -> None:
-    res1, _, _ = _enroll_device("device-independent-1", "Device 1")
-    res2, _, _ = _enroll_device("device-independent-2", "Device 2")
+def test_4_single_device_per_account_enforced_and_distinct_accounts_isolated() -> None:
+    # Account A enrolls Phone 1 -> succeeds
+    res1, _, _ = _enroll_device("device-acct-a-1", "Phone A1", account_id="acct-test-a")
     assert res1.status_code == 201
+
+    # Different phone trying to enroll in SAME Account A -> rejected with 409
+    res_dup, _, _ = _enroll_device("device-acct-a-2", "Phone A2", account_id="acct-test-a")
+    assert res_dup.status_code == 409
+    assert res_dup.json()["error"]["code"] == "DEVICE_ALREADY_REGISTERED"
+
+    # Distinct Account B can register its own phone independently -> succeeds
+    res2, _, _ = _enroll_device("device-acct-b-1", "Phone B1", account_id="acct-test-b")
     assert res2.status_code == 201
-    assert res1.json()["device_id"] != res2.json()["device_id"]
+    assert res1.json()["account_id"] != res2.json()["account_id"]
 
 
 def test_5_active_device_can_sign_in() -> None:
@@ -368,27 +390,16 @@ def test_10_unregister_does_not_delete_secure_notes() -> None:
 
 
 def test_11_device_ownership_isolation_remains_intact() -> None:
-    # Two distinct devices
-    _, priv1, _ = _enroll_device("device-user-alpha")
-    _, priv2, _ = _enroll_device("device-user-beta")
+    # Two distinct accounts and their respective devices
+    _, priv1, _ = _enroll_device("device-user-alpha", account_id="acct-alpha")
+    _, priv2, _ = _enroll_device("device-user-beta", account_id="acct-beta")
 
-    # Login device 1
-    s1 = client.post("/api/v1/auth/sessions", json={"session_type": "AUTHENTICATION"}).json()
-    qr1 = s1["qr_payload"]
-    c1 = build_canonical_payload(qr1["session_token"], qr1["nonce"], qr1["origin"], qr1["timestamp"])
-    t1 = client.post(
-        f"/api/v1/auth/sessions/{s1['session_token']}/verify",
-        json={"device_id": "device-user-alpha", "canonical_payload": c1, "signature": _sign_payload(priv1, c1)},
-    ).json()["access_token"]
-
-    # Login device 2
-    s2 = client.post("/api/v1/auth/sessions", json={"session_type": "AUTHENTICATION"}).json()
-    qr2 = s2["qr_payload"]
-    c2 = build_canonical_payload(qr2["session_token"], qr2["nonce"], qr2["origin"], qr2["timestamp"])
-    t2 = client.post(
-        f"/api/v1/auth/sessions/{s2['session_token']}/verify",
-        json={"device_id": "device-user-beta", "canonical_payload": c2, "signature": _sign_payload(priv2, c2)},
-    ).json()["access_token"]
+    # Login device 1 & 2 on their respective bound accounts
+    c1, a1 = _sign_in_device("device-user-alpha", priv1, account_id="acct-alpha")
+    c2, a2 = _sign_in_device("device-user-beta", priv2, account_id="acct-beta")
+    assert c1 == 200 and c2 == 200
+    t1 = a1["access_token"]
+    t2 = a2["access_token"]
 
     # Alpha creates a note
     n1 = client.post(
@@ -418,3 +429,317 @@ def test_12_device_status_sync_endpoint() -> None:
     assert active["status"] == "ACTIVE"
     assert active["registration_status"] == "REGISTERED"
     assert active["access_status"] == "ACTIVE"
+
+
+def _sign_in_device(
+    device_id: str,
+    priv: ec.EllipticCurvePrivateKey,
+    account_id: str | None = None,
+) -> tuple[int, dict]:
+    sess_body: dict[str, str] = {"session_type": "AUTHENTICATION"}
+    headers: dict[str, str] = {}
+    if account_id:
+        sess_body["account_id"] = account_id
+        headers["X-Dev-Admin-Key"] = "ipguard-dev-admin-secret-key"
+    auth_sess = client.post("/api/v1/auth/sessions", json=sess_body, headers=headers).json()
+    qr = auth_sess["qr_payload"]
+    canonical = build_canonical_payload(
+        qr["session_token"], qr["nonce"], qr["origin"], qr["timestamp"]
+    )
+    res = client.post(
+        f"/api/v1/auth/sessions/{auth_sess['session_token']}/verify",
+        json={
+            "device_id": device_id,
+            "canonical_payload": canonical,
+            "signature": _sign_payload(priv, canonical),
+        },
+    )
+    return res.status_code, res.json()
+
+
+def test_13_revoke_restore_and_key_preservation_security() -> None:
+    from app.services.audit_chain import verify_audit_chain
+
+    reg_res, priv, pub = _enroll_device("dev-restore-01", "Restore Phone", account_id="acct-restore")
+    assert reg_res.status_code == 201
+    original_fp = reg_res.json()["public_key_fingerprint"]
+
+    # Obtain active token before revocation
+    code, auth_data = _sign_in_device("dev-restore-01", priv, account_id="acct-restore")
+    assert code == 200
+    old_token = auth_data["access_token"]
+
+    # Revoke access
+    rev_res = client.post(
+        "/api/v1/auth/devices/dev-restore-01/revoke",
+        headers={"X-Dev-Admin-Key": "ipguard-dev-admin-secret-key"},
+        json={"reason": "Lost phone temporarily"},
+    )
+    assert rev_res.status_code == 200
+    assert rev_res.json()["status"] == "REVOKED"
+    assert rev_res.json()["public_key_fingerprint"] == original_fp
+
+    # Slot remains locked (1/1) while REVOKED: second device on same account must fail 409
+    r_other, _, _ = _enroll_device("dev-restore-rival", "Rival Phone", account_id="acct-restore")
+    assert r_other.status_code == 409
+
+    # Old Bearer token immediately fails on protected endpoints
+    assert client.get("/api/v1/notes", headers={"Authorization": f"Bearer {old_token}"}).status_code in (401, 403)
+
+    # Restore without recovery authorization fails closed (401)
+    assert client.post("/api/v1/auth/devices/dev-restore-01/restore").status_code == 401
+
+    # Self-restore with old Bearer token fails closed (403)
+    assert (
+        client.post(
+            "/api/v1/auth/devices/dev-restore-01/restore",
+            headers={"Authorization": f"Bearer {old_token}"},
+        ).status_code
+        == 403
+    )
+
+    # Restore with valid X-Account-Recovery-Key succeeds and preserves exact public key
+    restore_res = client.post(
+        "/api/v1/auth/devices/dev-restore-01/restore",
+        headers={"X-Account-Recovery-Key": "ipguard-dev-recovery-secret-key"},
+        json={"reason": "Phone recovered"},
+    )
+    assert restore_res.status_code == 200
+    assert restore_res.json()["status"] == "ACTIVE"
+    assert restore_res.json()["public_key_fingerprint"] == original_fp
+
+    # Original private key can authenticate again cleanly
+    code_after, _ = _sign_in_device("dev-restore-01", priv, account_id="acct-restore")
+    assert code_after == 200
+
+    # Verify audit chain integrity recorded lifecycle events
+    with SessionLocal() as db:
+        verification = verify_audit_chain(db, "dev-restore-01")
+        assert verification.valid is True
+        assert verification.event_count >= 4
+
+
+def test_14_unregister_releases_slot_blocks_old_key_and_allows_new_device() -> None:
+    r1, priv1, _ = _enroll_device("dev-old-phone", "Old Phone", account_id="acct-replace")
+    assert r1.status_code == 201
+
+    # Summary shows 1/1 active
+    sum1 = client.get(
+        "/api/v1/auth/devices/summary?account_id=acct-replace",
+        headers={"X-Dev-Admin-Key": "ipguard-dev-admin-secret-key"},
+    ).json()
+    assert sum1["registered_slots"] == 1
+    assert sum1["current_device"]["device_id"] == "dev-old-phone"
+
+    # Unregister old phone
+    unreg = client.post(
+        "/api/v1/auth/devices/dev-old-phone/unregister",
+        headers={"X-Dev-Admin-Key": "ipguard-dev-admin-secret-key"},
+    )
+    assert unreg.status_code == 200
+    assert unreg.json()["status"] == "UNREGISTERED"
+
+    # Old key cannot authenticate anymore
+    code_old, _ = _sign_in_device("dev-old-phone", priv1, account_id="acct-replace")
+    assert code_old == 403
+
+    # Restore on UNREGISTERED device is blocked (409)
+    res_restore_unreg = client.post(
+        "/api/v1/auth/devices/dev-old-phone/restore",
+        headers={"X-Account-Recovery-Key": "ipguard-dev-recovery-secret-key"},
+    )
+    assert res_restore_unreg.status_code == 409
+
+    # Summary shows 0/1 slot free, with old phone separated in history
+    sum2 = client.get(
+        "/api/v1/auth/devices/summary?account_id=acct-replace",
+        headers={"X-Dev-Admin-Key": "ipguard-dev-admin-secret-key"},
+    ).json()
+    assert sum2["registered_slots"] == 0
+    assert sum2["current_device"] is None
+    assert any(h["device_id"] == "dev-old-phone" for h in sum2["history"])
+
+    # New device can enroll into the freed account slot!
+    r2, priv2, _ = _enroll_device("dev-new-phone", "New Phone", account_id="acct-replace")
+    assert r2.status_code == 201
+    code_new, _ = _sign_in_device("dev-new-phone", priv2, account_id="acct-replace")
+    assert code_new == 200
+
+
+def test_15_cross_owner_device_management_forbidden() -> None:
+    _, priv_a, _ = _enroll_device("dev-cross-a", "Phone A", account_id="acct-cross-a")
+    _, _priv_b, _ = _enroll_device("dev-cross-b", "Phone B", account_id="acct-cross-b")
+
+    code_a, auth_a = _sign_in_device("dev-cross-a", priv_a, account_id="acct-cross-a")
+    assert code_a == 200
+    token_a = auth_a["access_token"]
+
+    # Account A Bearer token cannot revoke or unregister Account B's device
+    assert (
+        client.post(
+            "/api/v1/auth/devices/dev-cross-b/revoke",
+            headers={"Authorization": f"Bearer {token_a}"},
+        ).status_code
+        == 403
+    )
+    assert (
+        client.post(
+            "/api/v1/auth/devices/dev-cross-b/unregister",
+            headers={"Authorization": f"Bearer {token_a}"},
+        ).status_code
+        == 403
+    )
+    assert (
+        client.get(
+            "/api/v1/auth/devices/summary?account_id=acct-cross-b",
+            headers={"Authorization": f"Bearer {token_a}"},
+        ).status_code
+        == 403
+    )
+
+
+def test_16_system_overview_reports_live_state() -> None:
+    res = client.get("/api/v1/system/overview")
+    assert res.status_code == 200
+    body = res.json()
+    assert body["api_status"] == "ok"
+    assert body["database_status"] == "ok"
+    assert body["max_slots"] == 1
+    assert body["notes_count"] is None  # unauthenticated callers never see owner counts
+
+
+def test_17_unauthenticated_client_cannot_spoof_account_id() -> None:
+    spoof_sess = client.post(
+        "/api/v1/auth/sessions",
+        json={"session_type": "ENROLLMENT", "account_id": "victim-account"},
+    )
+    assert spoof_sess.status_code == 403
+    assert spoof_sess.json()["error"]["code"] == "untrusted_account_identifier"
+
+    spoof_sum = client.get("/api/v1/auth/devices/summary?account_id=victim-account")
+    assert spoof_sum.status_code == 403
+
+
+def test_18_cross_account_session_verification_and_device_reuse_blocked() -> None:
+    r_a, priv_a, _ = _enroll_device("dev-iso-a", "Phone A", account_id="acct-iso-a")
+    r_b, priv_b, _ = _enroll_device("dev-iso-b", "Phone B", account_id="acct-iso-b")
+    assert r_a.status_code == 201
+    assert r_b.status_code == 201
+
+    # Account B device cannot verify Account A's challenge session
+    code_cross, err_cross = _sign_in_device("dev-iso-b", priv_b, account_id="acct-iso-a")
+    assert code_cross == 403
+    assert err_cross["error"]["code"] == "cross_owner_forbidden"
+
+    # Unregister Phone A on Account A
+    unreg = client.post(
+        "/api/v1/auth/devices/dev-iso-a/unregister",
+        headers={"X-Dev-Admin-Key": "ipguard-dev-admin-secret-key"},
+    )
+    assert unreg.status_code == 200
+
+    # Account C cannot hijack dev-iso-a's historical device_id across accounts
+    r_hijack, _, _ = _enroll_device("dev-iso-a", "Hijacked Phone A", account_id="acct-iso-c")
+    assert r_hijack.status_code == 409
+    assert r_hijack.json()["error"]["code"] == "cross_account_device_conflict"
+
+
+def test_19_revoke_and_unregister_cancel_pending_sessions_and_block_replay() -> None:
+    reg_res, priv, _ = _enroll_device("dev-pend-01", "Pending Device", account_id="acct-pend")
+    assert reg_res.status_code == 201
+
+    # Initiate a pending authentication challenge BEFORE revocation
+    pend_sess = client.post(
+        "/api/v1/auth/sessions",
+        headers={"X-Dev-Admin-Key": "ipguard-dev-admin-secret-key"},
+        json={"session_type": "AUTHENTICATION", "account_id": "acct-pend"},
+    ).json()
+    qr = pend_sess["qr_payload"]
+    canonical = build_canonical_payload(
+        qr["session_token"], qr["nonce"], qr["origin"], qr["timestamp"]
+    )
+
+    # Revoke device (must cancel pending challenge session too)
+    assert (
+        client.post(
+            "/api/v1/auth/devices/dev-pend-01/revoke",
+            headers={"X-Dev-Admin-Key": "ipguard-dev-admin-secret-key"},
+        ).status_code
+        == 200
+    )
+
+    # Restore device, then confirm old pre-revocation pending challenge remains dead
+    assert (
+        client.post(
+            "/api/v1/auth/devices/dev-pend-01/restore",
+            headers={"X-Account-Recovery-Key": "ipguard-dev-recovery-secret-key"},
+        ).status_code
+        == 200
+    )
+
+    stale_verify = client.post(
+        f"/api/v1/auth/sessions/{pend_sess['session_token']}/verify",
+        json={
+            "device_id": "dev-pend-01",
+            "canonical_payload": canonical,
+            "signature": _sign_payload(priv, canonical),
+        },
+    )
+    assert stale_verify.status_code == 400
+
+
+def test_20_cross_account_notes_and_assets_isolation() -> None:
+    _, priv_a, _ = _enroll_device("dev-res-a", "Owner A", account_id="acct-res-a")
+    _, priv_b, _ = _enroll_device("dev-res-b", "Owner B", account_id="acct-res-b")
+    c_a, a_res = _sign_in_device("dev-res-a", priv_a, account_id="acct-res-a")
+    c_b, b_res = _sign_in_device("dev-res-b", priv_b, account_id="acct-res-b")
+    assert c_a == 200 and c_b == 200
+    tok_a = a_res["access_token"]
+    tok_b = b_res["access_token"]
+
+    note_a = client.post(
+        "/api/v1/notes",
+        headers={"Authorization": f"Bearer {tok_a}"},
+        json={"title": "Account A Confidential", "content": "Private A body"},
+    )
+    assert note_a.status_code == 201
+    note_id = note_a.json()["id"]
+
+    # Account B sees zero Account A notes and cannot fetch/delete Account A's note
+    assert client.get("/api/v1/notes", headers={"Authorization": f"Bearer {tok_b}"}).json() == []
+    assert client.get(f"/api/v1/notes/{note_id}", headers={"Authorization": f"Bearer {tok_b}"}).status_code == 404
+    assert client.delete(f"/api/v1/notes/{note_id}", headers={"Authorization": f"Bearer {tok_b}"}).status_code == 404
+
+
+def test_21_recovery_rate_limiting_and_secret_redacted_logging(caplog) -> None:
+    import logging
+
+    reg_res, _, _ = _enroll_device("dev-rate-01", "Rate Limit Phone", account_id="acct-rate")
+    assert reg_res.status_code == 201
+    assert (
+        client.post(
+            "/api/v1/auth/devices/dev-rate-01/revoke",
+            headers={"X-Dev-Admin-Key": "ipguard-dev-admin-secret-key"},
+        ).status_code
+        == 200
+    )
+
+    leaked_secret = "WRONG-RECOVERY-SECRET-DO-NOT-LOG"
+    with caplog.at_level(logging.INFO, logger="ipguard.security"):
+        for _ in range(5):
+            r = client.post(
+                "/api/v1/auth/devices/dev-rate-01/restore",
+                headers={"X-Account-Recovery-Key": leaked_secret},
+            )
+            assert r.status_code == 401
+
+        # 6th attempt within 60s must be rate-limited (429)
+        r_limited = client.post(
+            "/api/v1/auth/devices/dev-rate-01/restore",
+            headers={"X-Account-Recovery-Key": leaked_secret},
+        )
+        assert r_limited.status_code == 429
+        assert r_limited.json()["error"]["code"] == "recovery_rate_limited"
+
+    assert any("recovery_attempt" in rec.message and "dev-rate-01" in rec.message for rec in caplog.records)
+    assert all(leaked_secret not in rec.message for rec in caplog.records)

@@ -1,0 +1,7 @@
+stateDiagram-v2
+  [*] --> UNREGISTERED: Initial state (0/1 Device Slot)
+  UNREGISTERED --> ACTIVE: Enroll Device via QR + ECDSA P-256 Public Key (1/1 Slot Locked)
+  ACTIVE --> REVOKED: Revoke Access (1/1 Slot REMAINS LOCKED, Sessions Invalidated)
+  REVOKED --> ACTIVE: Restore Access via Verified X-Account-Recovery-Key (Same Key Preserved)
+  ACTIVE --> UNREGISTERED: Unregister Device (0/1 Slot Freed, Notes & Assets Retained)
+  REVOKED --> UNREGISTERED: Unregister Device (0/1 Slot Freed, New Device Can Enroll)

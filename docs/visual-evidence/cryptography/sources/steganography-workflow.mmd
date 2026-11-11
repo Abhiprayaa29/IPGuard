@@ -1,0 +1,7 @@
+flowchart LR
+  Src["Vault Source Asset (8-bit RGB/RGBA PNG)"] --> Payload["Canonical JSON Watermark Claims"]
+  Payload --> Ed["Sign with Ed25519 Private Key"]
+  Ed --> Frame["170-Byte IPGW v1 Frame + SHA-256 Digest"]
+  Frame --> LSB["Embed into 1-bit R/G/B Pixel LSBs (Preserve Alpha)"]
+  LSB --> Derived["Re-Encrypt Derivative via XChaCha20-Poly1305 (source_asset_id FK)"]
+  LSB --> Fragility["Fragile by Design: Lossy/Resize/Crop Invalidates Signature"]

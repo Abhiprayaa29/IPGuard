@@ -1,19 +1,59 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import DateTime, ForeignKey, String, Text, Uuid, func
+from sqlalchemy import DateTime, ForeignKey, Index, String, Text, Uuid, func, text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
 
+DEFAULT_ACCOUNT_ID = "ipguard-primary"
+
+
+def _fallback_isolated_account_id() -> str:
+    return f"acct-{uuid.uuid4().hex[:16]}"
+
+
+class Account(Base):
+    __tablename__ = "accounts"
+
+    account_id: Mapped[str] = mapped_column(
+        String(64),
+        primary_key=True,
+    )
+    display_name: Mapped[str] = mapped_column(
+        String(120),
+        nullable=False,
+        default="IPGuard Primary Account",
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+    )
+
 
 class Device(Base):
     __tablename__ = "devices"
+    __table_args__ = (
+        Index(
+            "uq_devices_one_registered_per_account",
+            "account_id",
+            unique=True,
+            postgresql_where=text("status IN ('ACTIVE', 'REVOKED')"),
+            sqlite_where=text("status IN ('ACTIVE', 'REVOKED')"),
+        ),
+    )
 
     id: Mapped[uuid.UUID] = mapped_column(
         Uuid(as_uuid=True),
         primary_key=True,
         default=uuid.uuid4,
+    )
+    account_id: Mapped[str] = mapped_column(
+        String(64),
+        nullable=False,
+        default=_fallback_isolated_account_id,
+        index=True,
     )
     device_id: Mapped[str] = mapped_column(
         String(64),
@@ -86,6 +126,12 @@ class AuthSession(Base):
         Uuid(as_uuid=True),
         primary_key=True,
         default=uuid.uuid4,
+    )
+    account_id: Mapped[str] = mapped_column(
+        String(64),
+        nullable=False,
+        default=DEFAULT_ACCOUNT_ID,
+        index=True,
     )
     session_token: Mapped[str] = mapped_column(
         String(64),

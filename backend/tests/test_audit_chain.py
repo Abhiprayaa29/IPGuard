@@ -204,6 +204,22 @@ def test_verifier_detects_deleted_event(audit_db):
     assert result.reason_code == "chain_sequence_mismatch"
 
 
+def test_verifier_detects_reordered_events(audit_db):
+    _, factory = audit_db
+    first = _append(factory, event_type="ASSET_UPLOADED", result="SUCCESS")
+    second = _append(factory, event_type="ASSET_DOWNLOADED", result="SUCCESS")
+    with factory.begin() as db:
+        # Temporarily move sequence 1 aside so we can swap sequences 1 and 2 cleanly
+        db.execute(update(AuditEvent).where(AuditEvent.event_id == first.event_id).values(sequence=999))
+        db.execute(update(AuditEvent).where(AuditEvent.event_id == second.event_id).values(sequence=1))
+        db.execute(update(AuditEvent).where(AuditEvent.event_id == first.event_id).values(sequence=2))
+
+    with factory() as db:
+        result = verify_audit_chain(db, "audit-device-1")
+    assert result.valid is False
+    assert result.reason_code in ("previous_hash_mismatch", "event_hash_mismatch", "sequence_gap_or_reorder")
+
+
 def test_orm_service_layer_rejects_event_update_and_delete(audit_db):
     _, factory = audit_db
     event = _append(factory)

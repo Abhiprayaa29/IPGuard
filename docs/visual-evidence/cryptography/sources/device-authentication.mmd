@@ -1,0 +1,7 @@
+flowchart LR
+  QR["QR Auth Challenge (session_token, nonce, challenge_id, exp)"]
+  Gate1["Gate 1: BiometricPrompt BIOMETRIC_WEAK (NO CryptoObject)"]
+  Gate2["Gate 2: Keystore CryptoObject (BIOMETRIC_STRONG or DEVICE_CREDENTIAL)"]
+  Sign["ECDSA NIST P-256 (secp256r1) Signature over SHA-256(Canonical JSON)"]
+  Verify["Backend Public Key Verify + Single-Use Nonce / SELECT FOR UPDATE"]
+  QR --> Gate1 --> Gate2 --> Sign --> Verify

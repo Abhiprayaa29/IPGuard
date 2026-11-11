@@ -488,7 +488,15 @@ class AuthenticatorViewModel @JvmOverloads constructor(
         activity: FragmentActivity,
         onCompleted: (Boolean) -> Unit
     ) {
-        val payload = _uiState.value.activeSession.payload
+        val snapshot = _uiState.value
+        if (snapshot.faceGate.status == FaceGateStatus.AUTHENTICATING ||
+            snapshot.activeSession.step == AuthFlowStep.AWAITING_DEVICE_AUTHENTICATION ||
+            snapshot.activeSession.step == AuthFlowStep.SUBMITTING_BACKEND
+        ) {
+            return
+        }
+
+        val payload = snapshot.activeSession.payload
         if (payload == null) {
             _uiState.update { current ->
                 current.copy(
