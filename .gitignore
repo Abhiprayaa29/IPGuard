@@ -58,6 +58,11 @@ UI1*
 
 # Android / Gradle
 .gradle/
+
+# Blockchain build & local broadcast artifacts
+blockchain/out/
+blockchain/cache/
+blockchain/broadcast/
 **/build/
 local.properties
 *.iml

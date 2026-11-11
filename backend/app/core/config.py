@@ -66,6 +66,57 @@ class Settings(BaseSettings):
     stego_max_image_dimension: int = Field(default=10_000, ge=1)
     stego_max_payload_bytes: int = Field(default=4 * 1024 * 1024, ge=0)
 
+    # M5 Hybrid Batch Blockchain Anchoring (optional; never breaks M1-M4 if unset)
+    blockchain_network: str = Field(
+        default="anvil",
+        description="Target blockchain network identifier (e.g., 'anvil', 'sepolia').",
+    )
+    blockchain_rpc_url: str | None = Field(
+        default=None,
+        description="JSON-RPC endpoint URL for Anvil local or Ethereum Sepolia.",
+    )
+    sepolia_rpc_url: str | None = Field(
+        default=None,
+        description="Optional Ethereum Sepolia JSON-RPC URL used when BLOCKCHAIN_NETWORK=sepolia.",
+    )
+    blockchain_chain_id: int | None = Field(
+        default=None,
+        description="Expected EVM chain ID (31337 for Anvil, 11155111 for Sepolia).",
+    )
+    sepolia_chain_id: int = Field(
+        default=11155111,
+        description="Chain ID for Ethereum Sepolia public testnet.",
+    )
+    blockchain_contract_address: str | None = Field(
+        default=None,
+        description="Deployed BatchAnchorRegistry contract address (0x...).",
+    )
+    blockchain_signer_private_key: str | None = Field(
+        default=None,
+        description="Private key (env-only, never logged or exposed) for the authorized anchor signer.",
+    )
+    blockchain_receipt_timeout_seconds: int = Field(default=45, ge=5, le=300)
+    blockchain_default_batch_size: int = Field(default=500, ge=1, le=5000)
+
+    @property
+    def effective_blockchain_network(self) -> str:
+        return (self.blockchain_network or "anvil").strip().lower()
+
+    @property
+    def effective_blockchain_rpc_url(self) -> str | None:
+        net = self.effective_blockchain_network
+        if net == "sepolia" and self.sepolia_rpc_url:
+            return self.sepolia_rpc_url.strip()
+        return self.blockchain_rpc_url.strip() if self.blockchain_rpc_url else None
+
+    @property
+    def effective_blockchain_chain_id(self) -> int:
+        if self.blockchain_chain_id is not None:
+            return self.blockchain_chain_id
+        if self.effective_blockchain_network == "sepolia":
+            return self.sepolia_chain_id
+        return 31337
+
     @property
     def notes_master_key_bytes(self) -> bytes:
         """
