@@ -12,16 +12,12 @@ export function ErrorBanner({ messages }: ErrorBannerProps) {
   return (
     <section
       role="alert"
-      className="flex gap-4 rounded-2xl border border-rose-400/20 bg-rose-400/[0.06] p-5 text-rose-100 animate-fade-up"
+      className="flex gap-3 rounded-lg border border-red-500/35 bg-red-500/10 p-4 text-red-100"
     >
-      <span className="grid size-10 shrink-0 place-items-center rounded-xl border border-rose-400/20 bg-rose-400/10 text-rose-300">
-        <AlertTriangle size={18} strokeWidth={1.9} aria-hidden="true" />
-      </span>
+      <AlertTriangle size={16} className="mt-0.5 shrink-0 text-red-400" aria-hidden="true" />
       <div className="min-w-0">
-        <h2 className="text-sm font-semibold text-rose-100">
-          Connection attention required
-        </h2>
-        <ul className="mt-2 space-y-1.5 text-xs leading-5 text-rose-100/70">
+        <h2 className="text-xs font-semibold text-red-200">Connection attention required</h2>
+        <ul className="mt-1.5 space-y-1 text-xs text-red-200/80">
           {messages.map((message, index) => (
             <li key={`${message}-${index}`}>{message}</li>
           ))}

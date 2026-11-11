@@ -17,27 +17,27 @@ export function QrSessionTimer({
   const seconds = secondsRemaining % 60
   const formattedTime = `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`
 
-  const strokeColor = isVeryLow
-    ? 'text-rose-500'
+  const toneClass = isVeryLow
+    ? 'text-red-400'
     : isLow
-      ? 'text-amber-400'
-      : 'text-ip-teal-400'
+      ? 'text-amber-300'
+      : 'text-ip-accent-400'
 
   const strokeDashoffset = 100 - percentage
 
   return (
-    <div className="flex items-center gap-3">
-      <div className="relative size-7 flex-shrink-0">
+    <div className="flex items-center gap-2.5">
+      <div className="relative size-7 shrink-0">
         <svg className="size-full -rotate-90" viewBox="0 0 36 36">
           <path
-            className="text-slate-800"
+            className="text-ip-border"
             strokeWidth="3.5"
             stroke="currentColor"
             fill="none"
             d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
           />
           <path
-            className={`${strokeColor} transition-all duration-500 ease-linear`}
+            className={`${toneClass} transition-all duration-500 ease-linear`}
             strokeDasharray="100, 100"
             strokeDashoffset={strokeDashoffset}
             strokeWidth="3.5"
@@ -48,24 +48,24 @@ export function QrSessionTimer({
           />
         </svg>
         <span
-          className="absolute inset-0 flex items-center justify-center text-[10px] text-slate-400"
+          className="absolute inset-0 flex items-center justify-center text-zinc-400"
           aria-hidden="true"
         >
-          <Clock size={11} className={strokeColor} />
+          <Clock size={11} className={toneClass} />
         </span>
       </div>
 
       <div className="flex flex-col">
-        <span className="text-[10px] font-medium uppercase tracking-[0.15em] text-slate-400">
-          Session expires in
+        <span className="text-[11px] font-medium text-zinc-500">
+          Expires in
         </span>
         <span
-          className={`font-mono text-sm font-bold tracking-wider ${
+          className={`font-mono text-sm font-semibold tabular-nums ${
             isVeryLow
-              ? 'text-rose-400 animate-pulse'
+              ? 'text-red-400'
               : isLow
                 ? 'text-amber-300'
-                : 'text-white'
+                : 'text-zinc-100'
           }`}
         >
           {formattedTime}
