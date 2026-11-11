@@ -3,6 +3,7 @@ import { useSystemStatus } from '../../hooks/useSystemStatus'
 import { getApiErrorMessage } from '../../services/api'
 import { getOverallStatus } from '../../utils/status'
 import { EnvironmentPanel } from './EnvironmentPanel'
+import { BlockchainAnchorPanel } from './BlockchainAnchorPanel'
 import { ReadinessHero } from './ReadinessHero'
 import { ServiceOverview } from './ServiceOverview'
 
@@ -60,6 +61,8 @@ export function SystemStatusPage() {
       <ErrorBanner messages={messages} />
 
       <ServiceOverview snapshot={data} isLoading={isPending} />
+
+      <BlockchainAnchorPanel />
 
       <EnvironmentPanel snapshot={data} isLoading={isPending} />
     </div>
