@@ -20,6 +20,7 @@ class DeviceResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     id: UUID
+    account_id: str
     device_id: str
     device_name: str
     model: str
@@ -47,10 +48,19 @@ class DeviceResponse(BaseModel):
         return "REVOKED"
 
 
+class DeviceLifecycleSummaryResponse(BaseModel):
+    account_id: str
+    registered_slots: int
+    max_slots: int = 1
+    current_device: DeviceResponse | None = None
+    history: list[DeviceResponse] = Field(default_factory=list)
+
+
 class DeviceStatusCheckResponse(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
     device_id: str
+    account_id: str | None = None
     status: str  # "ACTIVE", "REVOKED", "UNREGISTERED", or "NOT_ENROLLED"
     registration_status: str
     access_status: str
@@ -66,6 +76,12 @@ class SessionCreateRequest(BaseModel):
     origin: str | None = Field(
         default=None,
         description="Explicit web origin if different from HTTP request headers",
+    )
+    account_id: str | None = Field(
+        default=None,
+        min_length=1,
+        max_length=64,
+        description="Canonical account identifier binding device enrollment slots (defaults to primary account).",
     )
 
 
@@ -137,6 +153,10 @@ class DeviceRegisterRequest(BaseModel):
 
 class DeviceRevokeRequest(BaseModel):
     reason: str | None = Field(default=None, description="Reason for device revocation")
+
+
+class DeviceRestoreRequest(BaseModel):
+    reason: str | None = Field(default=None, description="Reason for restoring revoked device access")
 
 
 class DeviceUnregisterRequest(BaseModel):

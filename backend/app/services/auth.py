@@ -1,16 +1,19 @@
 from datetime import datetime, timedelta, timezone
 import hashlib
 import secrets
-from typing import Literal
 import uuid
 
 from sqlalchemy import select
+from sqlalchemy.dialects.postgresql import insert as postgres_insert
+from sqlalchemy.dialects.sqlite import insert as sqlite_insert
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
 from app.core.errors import AppError
-from app.models.auth import AuthSession, Device
+from app.models.auth import Account, AuthSession, DEFAULT_ACCOUNT_ID, Device
 from app.schemas.auth import (
+    DeviceLifecycleSummaryResponse,
     DeviceRegisterRequest,
     DeviceResponse,
     DeviceStatusCheckResponse,
@@ -21,6 +24,7 @@ from app.schemas.auth import (
     SessionStatusResponse,
     SessionVerifyRequest,
 )
+from app.services.audit_chain import AuditChainError, append_audit_event
 from app.services.crypto import (
     build_canonical_payload,
     compute_public_key_fingerprint,
@@ -33,6 +37,73 @@ from app.services.origin import validate_and_resolve_origin
 CHALLENGE_TIMEOUT_SECONDS = 60
 AUTHENTICATED_SESSION_LIFETIME_SECONDS = 3600
 DEFAULT_POLL_INTERVAL_MS = 1500
+
+
+def _resolve_account_id(candidate: str | None) -> str:
+    cleaned = (candidate or "").strip()
+    return cleaned if cleaned else DEFAULT_ACCOUNT_ID
+
+
+def _ensure_and_lock_account(db: Session, account_id: str) -> Account:
+    """
+    Create canonical Account row if absent and acquire an exclusive FOR UPDATE lock
+    to serialize concurrent enrollment attempts on the same account.
+    """
+    dialect = db.get_bind().dialect.name
+    insert_factory = {"postgresql": postgres_insert, "sqlite": sqlite_insert}.get(dialect)
+    if insert_factory is not None:
+        db.execute(
+            insert_factory(Account)
+            .values(account_id=account_id, display_name=f"IPGuard Account ({account_id})")
+            .on_conflict_do_nothing(index_elements=[Account.account_id])
+        )
+    account = db.scalar(
+        select(Account).where(Account.account_id == account_id).with_for_update()
+    )
+    if account is None:
+        account = Account(account_id=account_id, display_name=f"IPGuard Account ({account_id})")
+        db.add(account)
+        db.flush()
+    return account
+
+
+def _record_device_audit_event(
+    db: Session,
+    *,
+    device: Device,
+    event_type: str,
+    result: str,
+    actor_type: str = "SYSTEM",
+    reason: str | None = None,
+) -> None:
+    actor_device_id = device.device_id if actor_type == "DEVICE" else None
+    payload: dict[str, object] = {
+        "account_id": device.account_id,
+        "device_id": device.device_id,
+        "public_key_fingerprint": device.public_key_fingerprint,
+        "registration_status": "UNREGISTERED" if device.status == "UNREGISTERED" else "REGISTERED",
+        "status": device.status,
+    }
+    if reason:
+        payload["reason"] = reason[:200]
+    try:
+        append_audit_event(
+            db,
+            chain_id=device.device_id,
+            event_type=event_type,
+            resource_type="device",
+            resource_id=device.device_id,
+            result=result,
+            payload=payload,
+            actor_type=actor_type,  # type: ignore[arg-type]
+            actor_device_id=actor_device_id,
+        )
+    except AuditChainError as exc:
+        raise AppError(
+            status_code=500,
+            code="audit_chain_error",
+            message="Failed to record security audit event.",
+        ) from exc
 
 
 def create_auth_session(
@@ -51,6 +122,7 @@ def create_auth_session(
         candidate_origin=request.origin or candidate_origin,
         trusted_origins=settings.trusted_origin_list,
     )
+    account_id = _resolve_account_id(request.account_id)
     now = datetime.now(timezone.utc)
     expires_at = now + timedelta(seconds=CHALLENGE_TIMEOUT_SECONDS)
 
@@ -60,6 +132,7 @@ def create_auth_session(
     browser_channel_token_hash = hashlib.sha256(browser_channel_token.encode("utf-8")).hexdigest()
 
     session = AuthSession(
+        account_id=account_id,
         session_token=session_token,
         challenge_nonce=challenge_nonce,
         browser_channel_token_hash=browser_channel_token_hash,
@@ -117,7 +190,6 @@ def get_auth_session_status(
             message="Authentication session not found.",
         )
 
-    # SEC-02 Anti QR-Jacking / Shoulder-Surfing: Validate browser channel authorization
     if session.browser_channel_token_hash:
         if not browser_channel_token:
             raise AppError(
@@ -191,7 +263,7 @@ def mark_session_scanned(
     if session.status == "APPROVED":
         raise AppError(
             status_code=400,
-            code="session_already_approved",
+            code="session_already_consumed",
             message="Session has already been approved.",
         )
 
@@ -211,12 +283,11 @@ def mark_session_scanned(
 def register_device(db: Session, request: DeviceRegisterRequest) -> DeviceResponse:
     """
     Register a mobile device with its Android Keystore ECDSA P-256 public key.
-    Enforces One-Time Device Enrollment:
-    - Fresh device or explicitly UNREGISTERED device: enrollment accepted.
-    - ACTIVE device: rejected with HTTP 409 DEVICE_ALREADY_REGISTERED.
-    - REVOKED device: rejected with HTTP 409 DEVICE_ALREADY_REGISTERED (must be explicitly uninstalled/unregistered first).
-    - Re-enrollment of an UNREGISTERED device re-activates existing identity without losing note ownership.
-    - Pessimistic row-level locking guarantees concurrency protection.
+    Enforces One Account = Maximum 1 Registered Android Device (ACTIVE or REVOKED):
+    - Locks the canonical Account row via SELECT FOR UPDATE to serialize concurrent enrollments.
+    - Rejects duplicate registration of the same device or same account with HTTP 409 DEVICE_ALREADY_REGISTERED.
+    - REVOKED device keeps the account slot locked until explicitly unregistered.
+    - UNREGISTERED releases the account slot, allowing new device enrollment or re-enrollment.
     """
     # 1. Validate the enrollment session with exclusive row lock
     session = db.scalar(
@@ -255,7 +326,40 @@ def register_device(db: Session, request: DeviceRegisterRequest) -> DeviceRespon
             message="Enrollment session challenge has already been consumed.",
         )
 
-    # 2. Check for duplicate device ID or existing active/revoked device
+    account_id = _resolve_account_id(session.account_id)
+
+    # 2. Acquire account-level exclusive lock to serialize concurrent enrollment on the same account
+    _ensure_and_lock_account(db, account_id)
+
+    # 3. Enforce single-registered-device per account (ACTIVE or REVOKED locks the slot)
+    account_registered_device = db.scalar(
+        select(Device)
+        .where(
+            Device.account_id == account_id,
+            Device.status.in_(("ACTIVE", "REVOKED")),
+        )
+        .with_for_update()
+    )
+    if account_registered_device:
+        if account_registered_device.device_id == request.device_id:
+            if account_registered_device.status == "REVOKED":
+                raise AppError(
+                    status_code=409,
+                    code="DEVICE_ALREADY_REGISTERED",
+                    message="Akses perangkat ini telah dicabut namun registrasi masih terkunci. Silakan lakukan Unregister Device melalui web console untuk mendaftarkan ulang.",
+                )
+            raise AppError(
+                status_code=409,
+                code="DEVICE_ALREADY_REGISTERED",
+                message="Perangkat ini sudah terdaftar di IPGuard. Silakan gunakan Sign In untuk melanjutkan.",
+            )
+        raise AppError(
+            status_code=409,
+            code="DEVICE_ALREADY_REGISTERED",
+            message="Akun ini sudah memiliki perangkat Android terdaftar (1/1). Lepas registrasi perangkat sebelumnya melalui Device Management sebelum mendaftarkan perangkat baru.",
+        )
+
+    # 4. Also ensure this device_id is not still ACTIVE/REVOKED under any legacy record
     existing_device = db.scalar(
         select(Device).where(Device.device_id == request.device_id).with_for_update()
     )
@@ -266,14 +370,14 @@ def register_device(db: Session, request: DeviceRegisterRequest) -> DeviceRespon
                 code="DEVICE_ALREADY_REGISTERED",
                 message="Perangkat ini sudah terdaftar di IPGuard. Silakan gunakan Sign In untuk melanjutkan.",
             )
-        elif existing_device.status == "REVOKED":
+        if existing_device.status == "REVOKED":
             raise AppError(
                 status_code=409,
                 code="DEVICE_ALREADY_REGISTERED",
                 message="Akses perangkat ini telah dicabut namun registrasi masih terkunci. Silakan lakukan Unregister Device melalui web console untuk mendaftarkan ulang.",
             )
 
-    # 3. Cryptographically validate the public key (EC NIST P-256)
+    # 5. Cryptographically validate the public key (EC NIST P-256)
     public_key, der_bytes = parse_and_validate_public_key(request.public_key_x509)
     fingerprint = compute_public_key_fingerprint(der_bytes)
 
@@ -288,7 +392,7 @@ def register_device(db: Session, request: DeviceRegisterRequest) -> DeviceRespon
                     code="DEVICE_ALREADY_REGISTERED",
                     message="Perangkat ini sudah terdaftar di IPGuard. Silakan gunakan Sign In untuk melanjutkan.",
                 )
-            elif existing_key.status == "REVOKED":
+            if existing_key.status == "REVOKED":
                 raise AppError(
                     status_code=409,
                     code="DEVICE_ALREADY_REGISTERED",
@@ -301,7 +405,7 @@ def register_device(db: Session, request: DeviceRegisterRequest) -> DeviceRespon
                 message="Public signing key ini sudah terdaftar pada perangkat lain yang aktif atau terkunci.",
             )
 
-    # 4. Verify canonical payload matches session parameters exactly
+    # 6. Verify canonical payload matches session parameters exactly
     expected_canonical_payload = build_canonical_payload(
         session_token=session.session_token,
         nonce=session.challenge_nonce,
@@ -315,7 +419,7 @@ def register_device(db: Session, request: DeviceRegisterRequest) -> DeviceRespon
             message="Canonical payload does not match enrollment challenge parameters.",
         )
 
-    # 5. Verify cryptographic signature using the provided public key
+    # 7. Verify cryptographic signature using the provided public key
     is_valid = verify_ecdsa_signature(
         public_key=public_key,
         canonical_payload=request.canonical_payload,
@@ -328,9 +432,10 @@ def register_device(db: Session, request: DeviceRegisterRequest) -> DeviceRespon
             message="ECDSA signature verification failed for enrollment authorization.",
         )
 
-    # 6. Create new device or re-activate previously UNREGISTERED device
+    # 8. Create new device or re-activate previously UNREGISTERED device
     if existing_device:
         device = existing_device
+        device.account_id = account_id
         device.device_name = request.device_name
         device.model = request.model
         device.android_version = request.android_version
@@ -344,6 +449,7 @@ def register_device(db: Session, request: DeviceRegisterRequest) -> DeviceRespon
         device.unregistered_at = None
     else:
         device = Device(
+            account_id=account_id,
             device_id=request.device_id,
             device_name=request.device_name,
             model=request.model,
@@ -356,15 +462,32 @@ def register_device(db: Session, request: DeviceRegisterRequest) -> DeviceRespon
             last_used_at=now,
         )
         db.add(device)
-        db.flush()
 
-    # 7. Atomically consume the enrollment session
+    try:
+        db.flush()
+    except IntegrityError as exc:
+        db.rollback()
+        raise AppError(
+            status_code=409,
+            code="DEVICE_ALREADY_REGISTERED",
+            message="Akun ini sudah memiliki perangkat terdaftar atau perangkat bentrok dengan registrasi lain.",
+        ) from exc
+
+    # 9. Atomically consume the enrollment session and append audit record
     session.status = "APPROVED"
     session.device_id = device.id
     session.canonical_payload = request.canonical_payload
     session.signature = request.signature
     session.signed_at = now
     session.expires_at = now + timedelta(seconds=AUTHENTICATED_SESSION_LIFETIME_SECONDS)
+
+    _record_device_audit_event(
+        db,
+        device=device,
+        event_type="DEVICE_ENROLLED",
+        result="ACTIVE",
+        actor_type="DEVICE",
+    )
 
     db.commit()
     db.refresh(device)
@@ -381,9 +504,8 @@ def verify_session_signature(
     Verify ECDSA P-256 signature for an authentication session.
     Uses row-level pessimistic locking (SELECT FOR UPDATE) to guarantee atomic single-use challenge consumption.
     Fails closed on any discrepancy: expiration, replay, payload mismatch,
-    revoked device, or invalid cryptographic signature.
+    revoked/unregistered device, or invalid cryptographic signature.
     """
-    # 1. Retrieve session with exclusive row lock
     session = db.scalar(
         select(AuthSession)
         .where(AuthSession.session_token == session_token)
@@ -420,7 +542,6 @@ def verify_session_signature(
             message="Authentication session challenge has already been consumed.",
         )
 
-    # 2. Retrieve and check device
     device = db.scalar(
         select(Device).where(Device.device_id == request.device_id)
     )
@@ -435,10 +556,9 @@ def verify_session_signature(
         raise AppError(
             status_code=403,
             code="device_revoked",
-            message=f"Device '{request.device_id}' is revoked or inactive and cannot authenticate.",
+            message=f"Device '{request.device_id}' is {device.status.lower()} and cannot authenticate.",
         )
 
-    # 3. Canonical payload check (must match trusted origin bound to the session)
     expected_canonical_payload = build_canonical_payload(
         session_token=session.session_token,
         nonce=session.challenge_nonce,
@@ -452,7 +572,6 @@ def verify_session_signature(
             message="Canonical payload does not match expected session challenge.",
         )
 
-    # 4. Cryptographic signature check
     public_key, _ = parse_and_validate_public_key(device.public_key_x509)
     is_valid = verify_ecdsa_signature(
         public_key=public_key,
@@ -468,7 +587,6 @@ def verify_session_signature(
             message="ECDSA signature verification failed.",
         )
 
-    # 5. Transition session to APPROVED atomically in the locked transaction
     session.status = "APPROVED"
     session.device_id = device.id
     session.canonical_payload = request.canonical_payload
@@ -477,6 +595,14 @@ def verify_session_signature(
     session.expires_at = now + timedelta(seconds=AUTHENTICATED_SESSION_LIFETIME_SECONDS)
 
     device.last_used_at = now
+
+    _record_device_audit_event(
+        db,
+        device=device,
+        event_type="DEVICE_AUTHENTICATED",
+        result="APPROVED",
+        actor_type="DEVICE",
+    )
 
     db.commit()
     db.refresh(session)
@@ -494,12 +620,47 @@ def verify_session_signature(
     )
 
 
-def revoke_device(db: Session, device_id: str) -> DeviceResponse:
+def _assert_caller_owns_target(caller_device: Device | None, target_device: Device) -> None:
+    if caller_device is not None and caller_device.account_id != target_device.account_id:
+        raise AppError(
+            status_code=403,
+            code="cross_owner_forbidden",
+            message="Authenticated device is not authorized to manage another account's device.",
+        )
+
+
+def _invalidate_device_sessions(db: Session, device: Device, now: datetime) -> None:
+    approved_sessions = db.scalars(
+        select(AuthSession).where(
+            AuthSession.device_id == device.id,
+            AuthSession.status == "APPROVED",
+        ).with_for_update()
+    ).all()
+    for s in approved_sessions:
+        s.status = "REVOKED"
+        s.expires_at = now
+
+    pending_sessions = db.scalars(
+        select(AuthSession).where(
+            AuthSession.account_id == device.account_id,
+            AuthSession.status.in_(("PENDING", "SCANNED")),
+        ).with_for_update()
+    ).all()
+    for s in pending_sessions:
+        s.status = "REVOKED"
+        s.expires_at = now
+
+
+def revoke_device(
+    db: Session,
+    device_id: str,
+    *,
+    caller_device: Device | None = None,
+    reason: str | None = None,
+) -> DeviceResponse:
     """
-    Revoke an active device, preventing any future authentications.
-    Does NOT release the registration lock (cannot re-enroll while REVOKED).
-    Invalidates all active sessions for this device.
-    Uses row-level lock to ensure safe revocation.
+    Revoke an active device, preventing future authentications while keeping
+    the account registration slot reserved (REVOKED still locks 1/1 slot).
     """
     device = db.scalar(
         select(Device).where(Device.device_id == device_id).with_for_update()
@@ -511,21 +672,28 @@ def revoke_device(db: Session, device_id: str) -> DeviceResponse:
             message=f"Device '{device_id}' not found.",
         )
 
+    _assert_caller_owns_target(caller_device, device)
+
+    if device.status == "UNREGISTERED":
+        raise AppError(
+            status_code=409,
+            code="cannot_revoke_unregistered_device",
+            message="Unregistered devices do not hold an active registration to revoke.",
+        )
+
     now = datetime.now(timezone.utc)
     if device.status != "REVOKED":
         device.status = "REVOKED"
         device.revoked_at = now
-
-    # Invalidate all active approved sessions for this device
-    active_sessions = db.scalars(
-        select(AuthSession).where(
-            AuthSession.device_id == device.id,
-            AuthSession.status == "APPROVED",
-        ).with_for_update()
-    ).all()
-    for s in active_sessions:
-        s.status = "REVOKED"
-        s.expires_at = now
+        _invalidate_device_sessions(db, device, now)
+        _record_device_audit_event(
+            db,
+            device=device,
+            event_type="DEVICE_REVOKED",
+            result="REVOKED",
+            actor_type="SYSTEM",
+            reason=reason,
+        )
 
     db.commit()
     db.refresh(device)
@@ -533,13 +701,16 @@ def revoke_device(db: Session, device_id: str) -> DeviceResponse:
     return DeviceResponse.model_validate(device)
 
 
-def unregister_device(db: Session, device_id: str) -> DeviceResponse:
+def restore_device(
+    db: Session,
+    device_id: str,
+    *,
+    reason: str | None = None,
+) -> DeviceResponse:
     """
-    Explicitly unregister a device, ending its registration binding.
-    Transitions registration lifecycle to UNREGISTERED.
-    Invalidates all active sessions for this device.
-    Allows new enrollment after unregistration is complete.
-    Never hard-deletes the Device row or related Secure Notes.
+    Restore access for a REVOKED device back to ACTIVE, keeping its original
+    registration record and ECDSA P-256 public key intact without re-enrollment.
+    Cannot be called on an UNREGISTERED device.
     """
     device = db.scalar(
         select(Device).where(Device.device_id == device_id).with_for_update()
@@ -551,20 +722,71 @@ def unregister_device(db: Session, device_id: str) -> DeviceResponse:
             message=f"Device '{device_id}' not found.",
         )
 
-    now = datetime.now(timezone.utc)
-    device.status = "UNREGISTERED"
-    device.unregistered_at = now
+    if device.status == "UNREGISTERED":
+        raise AppError(
+            status_code=409,
+            code="cannot_restore_unregistered_device",
+            message="Unregistered devices cannot be restored. Complete new device enrollment instead.",
+        )
 
-    # Invalidate all active approved sessions for this device
-    active_sessions = db.scalars(
-        select(AuthSession).where(
-            AuthSession.device_id == device.id,
-            AuthSession.status == "APPROVED",
-        ).with_for_update()
-    ).all()
-    for s in active_sessions:
-        s.status = "REVOKED"
-        s.expires_at = now
+    # Validate public key binding remains cryptographically intact before restoring
+    parse_and_validate_public_key(device.public_key_x509)
+
+    if device.status != "ACTIVE":
+        device.status = "ACTIVE"
+        device.revoked_at = None
+        _record_device_audit_event(
+            db,
+            device=device,
+            event_type="DEVICE_RESTORED",
+            result="ACTIVE",
+            actor_type="SYSTEM",
+            reason=reason,
+        )
+
+    db.commit()
+    db.refresh(device)
+
+    return DeviceResponse.model_validate(device)
+
+
+def unregister_device(
+    db: Session,
+    device_id: str,
+    *,
+    caller_device: Device | None = None,
+    reason: str | None = None,
+) -> DeviceResponse:
+    """
+    Explicitly unregister a device, ending its current registration binding and
+    releasing the account's device slot (0/1). Preserves historical device record,
+    audit trail, Secure Notes, and Asset Vault.
+    """
+    device = db.scalar(
+        select(Device).where(Device.device_id == device_id).with_for_update()
+    )
+    if not device:
+        raise AppError(
+            status_code=404,
+            code="device_not_found",
+            message=f"Device '{device_id}' not found.",
+        )
+
+    _assert_caller_owns_target(caller_device, device)
+
+    now = datetime.now(timezone.utc)
+    if device.status != "UNREGISTERED":
+        device.status = "UNREGISTERED"
+        device.unregistered_at = now
+        _invalidate_device_sessions(db, device, now)
+        _record_device_audit_event(
+            db,
+            device=device,
+            event_type="DEVICE_UNREGISTERED",
+            result="UNREGISTERED",
+            actor_type="SYSTEM",
+            reason=reason,
+        )
 
     db.commit()
     db.refresh(device)
@@ -582,6 +804,7 @@ def get_device_status(db: Session, device_id: str) -> DeviceStatusCheckResponse:
     if not device:
         return DeviceStatusCheckResponse(
             device_id=device_id,
+            account_id=None,
             status="NOT_ENROLLED",
             registration_status="UNREGISTERED",
             access_status="REVOKED",
@@ -591,6 +814,7 @@ def get_device_status(db: Session, device_id: str) -> DeviceStatusCheckResponse:
 
     return DeviceStatusCheckResponse(
         device_id=device.device_id,
+        account_id=device.account_id,
         status=device.status,
         registration_status="UNREGISTERED" if device.status == "UNREGISTERED" else "REGISTERED",
         access_status="ACTIVE" if device.status == "ACTIVE" else "REVOKED",
@@ -599,9 +823,36 @@ def get_device_status(db: Session, device_id: str) -> DeviceStatusCheckResponse:
     )
 
 
+def get_device_lifecycle_summary(
+    db: Session,
+    account_id: str,
+) -> DeviceLifecycleSummaryResponse:
+    """
+    Return the single-device slot posture (0/1 or 1/1), current registered device
+    (ACTIVE or REVOKED), and separated UNREGISTERED historical records for an account.
+    """
+    resolved_account = _resolve_account_id(account_id)
+    devices = db.scalars(
+        select(Device)
+        .where(Device.account_id == resolved_account)
+        .order_by(Device.enrolled_at.desc())
+    ).all()
+
+    current_device = next((d for d in devices if d.status in ("ACTIVE", "REVOKED")), None)
+    history = [d for d in devices if d.status == "UNREGISTERED"]
+
+    return DeviceLifecycleSummaryResponse(
+        account_id=resolved_account,
+        registered_slots=1 if current_device is not None else 0,
+        max_slots=1,
+        current_device=DeviceResponse.model_validate(current_device) if current_device else None,
+        history=[DeviceResponse.model_validate(d) for d in history],
+    )
+
+
 def list_devices(db: Session) -> list[DeviceResponse]:
     """
-    List all registered devices.
+    List all registered devices (administrative development inspection).
     """
     devices = db.scalars(select(Device).order_by(Device.enrolled_at.desc())).all()
     return [DeviceResponse.model_validate(d) for d in devices]

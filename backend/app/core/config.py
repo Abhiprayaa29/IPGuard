@@ -28,6 +28,10 @@ class Settings(BaseSettings):
     cors_origins: str = "http://localhost:5173,http://127.0.0.1:5173"
     trusted_origins: str | None = None
     dev_admin_key: str = "ipguard-dev-admin-secret-key"
+    account_recovery_key: str | None = Field(
+        default="ipguard-dev-recovery-secret-key",
+        description="Out-of-band account recovery authorization key for restoring REVOKED devices.",
+    )
     notes_master_key_b64: str | None = Field(
         default=None,
         description="Base64 encoded 32-byte master key for Secure Notes encryption.",
