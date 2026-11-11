@@ -73,9 +73,9 @@ fun WelcomeScreen(
 
     val statusPillText = when {
         isRevoked -> "DEVICE REVOKED"
-        isRegistered && hasKey -> "TRUSTED AUTHENTICATOR ACTIVE"
+        isRegistered && hasKey -> "ACTIVE AUTHENTICATOR"
         isRegistered && !hasKey -> "KEY MISSING IN KEYSTORE"
-        else -> "UNREGISTERED DEVICE"
+        else -> "UNREGISTERED"
     }
     val statusPillTone = when {
         isRevoked || (isRegistered && !hasKey) -> PillTone.DANGER
@@ -84,19 +84,19 @@ fun WelcomeScreen(
     }
 
     val eyebrow = when {
-        isRevoked -> "ACCESS SUSPENDED"
-        isRegistered -> "HARDWARE IDENTITY VAULT"
-        else -> "SECURE DIGITAL IDENTITY"
+        isRevoked -> "ACCESS REVOKED"
+        isRegistered -> "PRIMARY AUTHENTICATOR"
+        else -> "DEVICE ENROLLMENT"
     }
     val title = when {
         isRevoked -> "Device access revoked"
-        isRegistered -> "Hardware authenticator ready"
-        else -> "Your phone is the key"
+        isRegistered -> "IPGuard Authenticator"
+        else -> "Enroll this device"
     }
     val subtitle = when {
-        isRevoked -> "This device is currently marked revoked on IPGuard backend. Re-authorize from the Web Console."
-        isRegistered -> "Protected by Android Keystore ECDSA P-256 and native device biometrics for passwordless authorization."
-        else -> "IPGuard — Secure Digital Identity & Asset Protection. Bind this phone once to sign Web Console sessions."
+        isRevoked -> "This device slot is suspended. Restore access in Web Console (Devices -> Restore Access) with your recovery key, or unregister it."
+        isRegistered -> "Hardware Keystore ECDSA P-256 and native Android biometrics ready for QR verification."
+        else -> "Bind this Android phone as your single trusted authenticator for Web Console access."
     }
 
     AuthenticatorScreen(

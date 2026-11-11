@@ -29,7 +29,6 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.StrokeCap
@@ -113,26 +112,8 @@ private fun AppBackground() {
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(
-                Brush.verticalGradient(
-                    listOf(IPGuardObsidian, IPGuardCharcoal, IPGuardObsidian)
-                )
-            )
-    ) {
-        // Subtle radial ambient gold glint at top-right corner
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(240.dp)
-                .background(
-                    Brush.radialGradient(
-                        colors = listOf(IPGuardGold.copy(alpha = 0.06f), Color.Transparent),
-                        center = Offset(720f, 0f),
-                        radius = 700f
-                    )
-                )
-        )
-    }
+            .background(IPGuardObsidian)
+    )
 }
 
 @Composable

@@ -10,45 +10,48 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
 
-// Obsidian & Charcoal cybersecurity surface hierarchy
-val IPGuardObsidian = Color(0xFF090A0D)
-val IPGuardCharcoal = Color(0xFF101217)
-val IPGuardSurface = Color(0xFF151820)
-val IPGuardSurfaceElevated = Color(0xFF1C202B)
-val IPGuardHairline = Color(0xFF262B38)
+// Charcoal security surface hierarchy (harmonized with Web Console)
+val IPGuardObsidian = Color(0xFF0B0D11)
+val IPGuardCharcoal = Color(0xFF11141B)
+val IPGuardSurface = Color(0xFF11141B)
+val IPGuardSurfaceElevated = Color(0xFF171B24)
+val IPGuardHairline = Color(0xFF242936)
 
-// Metallic Gold primary accent spectrum
-val IPGuardGold = Color(0xFFD4AF37)
-val IPGuardGoldBright = Color(0xFFE6C86E)
-val IPGuardGoldMuted = Color(0xFF8C7430)
+// Restrained Teal primary accent spectrum
+val IPGuardAccent = Color(0xFF14B8A6)
+val IPGuardAccentBright = Color(0xFF2DD4BF)
+val IPGuardAccentMuted = Color(0xFF0F766E)
 
 // Neutral typography hierarchy
-val IPGuardPlatinum = Color(0xFFF3F4F6)
-val IPGuardSlate = Color(0xFF9CA3AF)
-val IPGuardSlateDim = Color(0xFF6B7280)
+val IPGuardPlatinum = Color(0xFFF4F4F5)
+val IPGuardSlate = Color(0xFFA1A1AA)
+val IPGuardSlateDim = Color(0xFF71717A)
 
 // Semantic status tokens (always paired with iconography & labels)
-val IPGuardVerified = Color(0xFF34D399)
-val IPGuardWarning = Color(0xFFE6C86E)
-val IPGuardDanger = Color(0xFFF87171)
+val IPGuardVerified = Color(0xFF10B981)
+val IPGuardWarning = Color(0xFFF59E0B)
+val IPGuardDanger = Color(0xFFEF4444)
 
-// Compatibility aliases mapped cleanly to Obsidian & Gold system
+// Compatibility aliases mapped cleanly to Charcoal & Teal system
+val IPGuardGold = IPGuardAccent
+val IPGuardGoldBright = IPGuardAccentBright
+val IPGuardGoldMuted = IPGuardAccentMuted
 val IPGuardNavy950 = IPGuardObsidian
 val IPGuardNavy900 = IPGuardSurface
 val IPGuardNavy800 = IPGuardSurfaceElevated
 val IPGuardNavy700 = IPGuardSurfaceElevated
-val IPGuardTeal = IPGuardGoldBright
+val IPGuardTeal = IPGuardAccentBright
 val IPGuardMist = IPGuardPlatinum
 val IPGuardMistMuted = IPGuardSlate
 val IPGuardOutline = IPGuardHairline
 val IPGuardSuccess = IPGuardVerified
 
 private val IPGuardColorScheme = darkColorScheme(
-    primary = IPGuardGold,
+    primary = IPGuardAccent,
     onPrimary = IPGuardObsidian,
-    primaryContainer = Color(0xFF241E11),
-    onPrimaryContainer = IPGuardGoldBright,
-    secondary = IPGuardGoldBright,
+    primaryContainer = Color(0xFF0F2926),
+    onPrimaryContainer = IPGuardAccentBright,
+    secondary = IPGuardAccentBright,
     onSecondary = IPGuardObsidian,
     secondaryContainer = IPGuardSurfaceElevated,
     onSecondaryContainer = IPGuardPlatinum,
