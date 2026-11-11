@@ -319,11 +319,11 @@ def register_device(db: Session, request: DeviceRegisterRequest) -> DeviceRespon
             message="Enrollment session has expired.",
         )
 
-    if session.status == "APPROVED":
+    if session.status not in ("PENDING", "SCANNED"):
         raise AppError(
             status_code=400,
             code="session_already_consumed",
-            message="Enrollment session challenge has already been consumed.",
+            message=f"Enrollment session is in state '{session.status}' and can no longer be used.",
         )
 
     account_id = _resolve_account_id(session.account_id)
@@ -432,8 +432,14 @@ def register_device(db: Session, request: DeviceRegisterRequest) -> DeviceRespon
             message="ECDSA signature verification failed for enrollment authorization.",
         )
 
-    # 8. Create new device or re-activate previously UNREGISTERED device
+    # 8. Create new device or re-activate previously UNREGISTERED device within the SAME account
     if existing_device:
+        if existing_device.account_id != account_id:
+            raise AppError(
+                status_code=409,
+                code="cross_account_device_conflict",
+                message="This device identifier is bound to another account's historical records and cannot be enrolled across accounts.",
+            )
         device = existing_device
         device.account_id = account_id
         device.device_name = request.device_name
@@ -535,11 +541,11 @@ def verify_session_signature(
             message="Authentication session has expired.",
         )
 
-    if session.status == "APPROVED":
+    if session.status not in ("PENDING", "SCANNED"):
         raise AppError(
             status_code=400,
             code="session_already_consumed",
-            message="Authentication session challenge has already been consumed.",
+            message=f"Authentication session is in state '{session.status}' and can no longer be verified.",
         )
 
     device = db.scalar(
@@ -550,6 +556,13 @@ def verify_session_signature(
             status_code=404,
             code="device_not_found",
             message=f"Device '{request.device_id}' is not enrolled.",
+        )
+
+    if device.account_id != session.account_id:
+        raise AppError(
+            status_code=403,
+            code="cross_owner_forbidden",
+            message="Authenticator device belongs to a different account than this challenge session.",
         )
 
     if device.status != "ACTIVE":

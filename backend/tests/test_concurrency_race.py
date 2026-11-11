@@ -50,8 +50,10 @@ def test_concurrent_verification_exact_single_winner() -> None:
     """
     # 1. Enroll device under isolated test account
     test_account = f"acct-race-{uuid.uuid4().hex[:8]}"
+    admin_headers = {"X-Dev-Admin-Key": "ipguard-dev-admin-secret-key"}
     enroll_sess = client.post(
         "/api/v1/auth/sessions",
+        headers=admin_headers,
         json={"session_type": "ENROLLMENT", "account_id": test_account},
     ).json()
     priv, b64_pub = _generate_p256_keypair()
@@ -73,10 +75,11 @@ def test_concurrent_verification_exact_single_winner() -> None:
     )
     assert reg_res.status_code == 201, reg_res.text
 
-    # 2. Create AUTHENTICATION session
+    # 2. Create AUTHENTICATION session bound to the same test account
     auth_sess = client.post(
         "/api/v1/auth/sessions",
-        json={"session_type": "AUTHENTICATION"},
+        headers=admin_headers,
+        json={"session_type": "AUTHENTICATION", "account_id": test_account},
     ).json()
     token = auth_sess["session_token"]
     qr = auth_sess["qr_payload"]
@@ -138,6 +141,7 @@ def test_concurrent_device_registration_single_winner() -> None:
     """
     enroll_sess = client.post(
         "/api/v1/auth/sessions",
+        headers={"X-Dev-Admin-Key": "ipguard-dev-admin-secret-key"},
         json={"session_type": "ENROLLMENT", "account_id": f"acct-same-sess-{uuid.uuid4().hex[:8]}"},
     ).json()
     token = enroll_sess["session_token"]
@@ -190,6 +194,7 @@ def test_concurrent_enrollment_same_account_single_winner() -> None:
     sessions = [
         client.post(
             "/api/v1/auth/sessions",
+            headers={"X-Dev-Admin-Key": "ipguard-dev-admin-secret-key"},
             json={"session_type": "ENROLLMENT", "account_id": target_account},
         ).json()
         for _ in range(3)

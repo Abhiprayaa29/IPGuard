@@ -117,6 +117,21 @@ class Settings(BaseSettings):
         return raw_key
 
     @property
+    def effective_account_recovery_key(self) -> str:
+        """
+        Resolve the out-of-band recovery authorization key.
+        Fails closed in production if unset or still configured with the dev default.
+        """
+        key = (self.account_recovery_key or "").strip()
+        if self.app_env == "production" and (
+            not key or key == "ipguard-dev-recovery-secret-key"
+        ):
+            raise ValueError(
+                "CRITICAL: A non-default ACCOUNT_RECOVERY_KEY is mandatory in production environments."
+            )
+        return key
+
+    @property
     def storage_directory(self) -> Path:
         """Resolve persistent storage directory for encrypted asset binaries."""
         if self.asset_vault_storage_dir:

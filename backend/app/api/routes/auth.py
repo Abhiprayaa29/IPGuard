@@ -70,7 +70,14 @@ def _has_valid_recovery_or_dev_admin(
     settings: Settings,
 ) -> bool:
     if x_account_recovery_key:
-        expected_recovery = (settings.account_recovery_key or "").strip()
+        try:
+            expected_recovery = settings.effective_account_recovery_key
+        except ValueError as exc:
+            raise AppError(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                code="recovery_key_not_configured",
+                message="Out-of-band account recovery is not configured on this server.",
+            ) from exc
         if not expected_recovery or not secrets.compare_digest(x_account_recovery_key, expected_recovery):
             raise AppError(
                 status_code=status.HTTP_401_UNAUTHORIZED,
@@ -167,14 +174,31 @@ def require_restore_access_authorization(
     summary="Create authentication or enrollment session challenge",
     responses={
         400: {"model": ErrorResponse, "description": "Invalid session parameters or untrusted origin."},
+        403: {"model": ErrorResponse, "description": "Untrusted client-supplied account identifier."},
     },
 )
 def create_session(
     body: SessionCreateRequest,
     request: Request,
     db: Session = Depends(get_db),
+    settings: Settings = Depends(get_settings),
     origin: str | None = Header(default=None),
+    x_dev_admin_key: str | None = Header(default=None, alias="X-Dev-Admin-Key"),
+    x_account_recovery_key: str | None = Header(default=None, alias="X-Account-Recovery-Key"),
 ) -> SessionResponse:
+    requested_account = (body.account_id or "").strip()
+    if requested_account and requested_account != DEFAULT_ACCOUNT_ID:
+        if not _has_valid_recovery_or_dev_admin(
+            x_dev_admin_key=x_dev_admin_key,
+            x_account_recovery_key=x_account_recovery_key,
+            settings=settings,
+        ):
+            raise AppError(
+                status_code=status.HTTP_403_FORBIDDEN,
+                code="untrusted_account_identifier",
+                message="Custom account_id requires server-trusted provisioning or administrative authorization.",
+            )
+
     candidate_origin = body.origin or origin
     client_ip = request.client.host if request.client else None
     client_ua = request.headers.get("user-agent")
@@ -284,11 +308,15 @@ def register_new_device(
 )
 def get_account_device_summary(
     account_id: str | None = Query(default=None, max_length=64),
+    x_dev_admin_key: str | None = Header(default=None, alias="X-Dev-Admin-Key"),
+    x_account_recovery_key: str | None = Header(default=None, alias="X-Account-Recovery-Key"),
     db: Session = Depends(get_db),
+    settings: Settings = Depends(get_settings),
     caller_device: Device | None = Depends(require_device_action_access),
 ) -> DeviceLifecycleSummaryResponse:
+    requested_account = (account_id or "").strip()
     if caller_device is not None:
-        if account_id and account_id != caller_device.account_id:
+        if requested_account and requested_account != caller_device.account_id:
             raise AppError(
                 status_code=status.HTTP_403_FORBIDDEN,
                 code="cross_owner_forbidden",
@@ -296,7 +324,18 @@ def get_account_device_summary(
             )
         target_account = caller_device.account_id
     else:
-        target_account = account_id or DEFAULT_ACCOUNT_ID
+        has_privileged_key = _has_valid_recovery_or_dev_admin(
+            x_dev_admin_key=x_dev_admin_key,
+            x_account_recovery_key=x_account_recovery_key,
+            settings=settings,
+        )
+        if requested_account and requested_account != DEFAULT_ACCOUNT_ID and not has_privileged_key:
+            raise AppError(
+                status_code=status.HTTP_403_FORBIDDEN,
+                code="cross_owner_forbidden",
+                message="Unauthenticated callers cannot inspect non-default account summaries.",
+            )
+        target_account = requested_account or DEFAULT_ACCOUNT_ID
 
     return get_device_lifecycle_summary(db=db, account_id=target_account)
 
