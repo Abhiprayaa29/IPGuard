@@ -31,6 +31,7 @@ import {
   unregisterDevice,
 } from '../../services/devices'
 import type { Device, DeviceLifecycleSummary } from '../../types/devices'
+import { clearStoredSessionToken, getStoredSessionToken } from '../../utils/session'
 
 function formatDateTime(value: string | null | undefined): string {
   if (!value) return 'Never'
@@ -62,6 +63,21 @@ export function DeviceManagementPage() {
       const data = await getDeviceLifecycleSummary()
       setSummary(data)
     } catch (err) {
+      if (getStoredSessionToken()) {
+        clearStoredSessionToken()
+        try {
+          const fallback = await getDeviceLifecycleSummary()
+          setSummary(fallback)
+          return
+        } catch (retryErr) {
+          setError(
+            retryErr instanceof Error
+              ? retryErr.message
+              : 'Failed to load device lifecycle summary.',
+          )
+          return
+        }
+      }
       setError(err instanceof Error ? err.message : 'Failed to load device lifecycle summary.')
     } finally {
       setLoading(false)
@@ -93,6 +109,7 @@ export function DeviceManagementPage() {
     setError(null)
     try {
       await revokeDevice(revokeTarget.device_id, actionReason || undefined)
+      clearStoredSessionToken()
       pushToast(`Access revoked for ${revokeTarget.device_name}.`, 'info')
       setRevokeTarget(null)
       setActionReason('')
@@ -132,6 +149,7 @@ export function DeviceManagementPage() {
     setError(null)
     try {
       await unregisterDevice(unregisterTarget.device_id, actionReason || undefined)
+      clearStoredSessionToken()
       pushToast(`Device ${unregisterTarget.device_name} unregistered. Slot released (0/1).`, 'info')
       setUnregisterTarget(null)
       setActionReason('')
@@ -462,7 +480,7 @@ export function DeviceManagementPage() {
           type="password"
           value={recoveryKey}
           onChange={(e) => setRecoveryKey(e.target.value)}
-          placeholder="Leave blank in dev or enter recovery key"
+          placeholder="Enter out-of-band account recovery key"
           hint="Verified out-of-band on the server; the blocked device cannot restore itself."
         />
         <TextInput

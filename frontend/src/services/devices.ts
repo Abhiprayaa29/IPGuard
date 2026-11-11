@@ -6,13 +6,10 @@ import type {
 } from '../types/devices'
 import { getStoredSessionToken } from '../utils/session'
 
-const DEFAULT_DEV_ADMIN_KEY = 'ipguard-dev-admin-secret-key'
-const DEFAULT_DEV_RECOVERY_KEY = 'ipguard-dev-recovery-secret-key'
-
 function getAuthHeaders(explicitAdminKey?: string): Record<string, string> {
   const headers: Record<string, string> = {}
   const adminKey =
-    explicitAdminKey || localStorage.getItem('ipguard_admin_key') || DEFAULT_DEV_ADMIN_KEY
+    explicitAdminKey || localStorage.getItem('ipguard_admin_key') || undefined
   if (adminKey) {
     headers['X-Dev-Admin-Key'] = adminKey
   }
@@ -81,12 +78,14 @@ export async function restoreDevice(
   recoveryKey?: string,
 ): Promise<Device> {
   try {
-    const headers: Record<string, string> = {}
     const resolvedRecoveryKey =
-      recoveryKey?.trim() ||
-      localStorage.getItem('ipguard_recovery_key') ||
-      DEFAULT_DEV_RECOVERY_KEY
-    headers['X-Account-Recovery-Key'] = resolvedRecoveryKey
+      recoveryKey?.trim() || localStorage.getItem('ipguard_recovery_key')?.trim()
+    if (!resolvedRecoveryKey) {
+      throw new Error('Account recovery authorization key is required.')
+    }
+    const headers: Record<string, string> = {
+      'X-Account-Recovery-Key': resolvedRecoveryKey,
+    }
 
     const response = await apiClient.post<Device>(
       `/auth/devices/${deviceId}/restore`,
@@ -95,6 +94,9 @@ export async function restoreDevice(
     )
     return response.data
   } catch (error) {
+    if (error instanceof Error && error.message === 'Account recovery authorization key is required.') {
+      throw error
+    }
     throw new Error(getApiErrorMessage(error))
   }
 }

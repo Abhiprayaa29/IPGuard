@@ -709,3 +709,37 @@ def test_20_cross_account_notes_and_assets_isolation() -> None:
     assert client.get("/api/v1/notes", headers={"Authorization": f"Bearer {tok_b}"}).json() == []
     assert client.get(f"/api/v1/notes/{note_id}", headers={"Authorization": f"Bearer {tok_b}"}).status_code == 404
     assert client.delete(f"/api/v1/notes/{note_id}", headers={"Authorization": f"Bearer {tok_b}"}).status_code == 404
+
+
+def test_21_recovery_rate_limiting_and_secret_redacted_logging(caplog) -> None:
+    import logging
+
+    reg_res, _, _ = _enroll_device("dev-rate-01", "Rate Limit Phone", account_id="acct-rate")
+    assert reg_res.status_code == 201
+    assert (
+        client.post(
+            "/api/v1/auth/devices/dev-rate-01/revoke",
+            headers={"X-Dev-Admin-Key": "ipguard-dev-admin-secret-key"},
+        ).status_code
+        == 200
+    )
+
+    leaked_secret = "WRONG-RECOVERY-SECRET-DO-NOT-LOG"
+    with caplog.at_level(logging.INFO, logger="ipguard.security"):
+        for _ in range(5):
+            r = client.post(
+                "/api/v1/auth/devices/dev-rate-01/restore",
+                headers={"X-Account-Recovery-Key": leaked_secret},
+            )
+            assert r.status_code == 401
+
+        # 6th attempt within 60s must be rate-limited (429)
+        r_limited = client.post(
+            "/api/v1/auth/devices/dev-rate-01/restore",
+            headers={"X-Account-Recovery-Key": leaked_secret},
+        )
+        assert r_limited.status_code == 429
+        assert r_limited.json()["error"]["code"] == "recovery_rate_limited"
+
+    assert any("recovery_attempt" in rec.message and "dev-rate-01" in rec.message for rec in caplog.records)
+    assert all(leaked_secret not in rec.message for rec in caplog.records)

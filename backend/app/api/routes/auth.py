@@ -1,4 +1,9 @@
+from collections import defaultdict
+import hashlib
+import logging
 import secrets
+from threading import Lock
+import time
 
 from fastapi import APIRouter, Depends, Header, Query, Request, status
 from sqlalchemy.orm import Session
@@ -38,6 +43,47 @@ from app.services.auth import (
 )
 
 router = APIRouter()
+security_logger = logging.getLogger("ipguard.security")
+
+_RECOVERY_WINDOW_SECONDS = 60.0
+_RECOVERY_MAX_FAILURES = 5
+_recovery_failures: dict[str, list[float]] = defaultdict(list)
+_recovery_lock = Lock()
+
+
+def _verify_recovery_secret(presented: str, settings: Settings) -> bool:
+    digest_cfg = (settings.account_recovery_key_sha256 or "").strip().lower()
+    if digest_cfg:
+        presented_digest = hashlib.sha256(presented.encode("utf-8")).hexdigest()
+        return secrets.compare_digest(presented_digest, digest_cfg)
+    expected = settings.effective_account_recovery_key
+    return bool(expected) and secrets.compare_digest(presented, expected)
+
+
+def _check_recovery_rate_limit(bucket_key: str) -> None:
+    now = time.monotonic()
+    with _recovery_lock:
+        recent = [ts for ts in _recovery_failures[bucket_key] if now - ts < _RECOVERY_WINDOW_SECONDS]
+        _recovery_failures[bucket_key] = recent
+        if len(recent) >= _RECOVERY_MAX_FAILURES:
+            raise AppError(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                code="recovery_rate_limited",
+                message="Too many failed recovery authorization attempts. Wait 60 seconds and retry.",
+            )
+
+
+def _record_recovery_failure(bucket_key: str) -> None:
+    now = time.monotonic()
+    with _recovery_lock:
+        recent = [ts for ts in _recovery_failures[bucket_key] if now - ts < _RECOVERY_WINDOW_SECONDS]
+        recent.append(now)
+        _recovery_failures[bucket_key] = recent
+
+
+def _clear_recovery_failures(bucket_key: str) -> None:
+    with _recovery_lock:
+        _recovery_failures.pop(bucket_key, None)
 
 
 def require_dev_admin_access(
@@ -71,14 +117,14 @@ def _has_valid_recovery_or_dev_admin(
 ) -> bool:
     if x_account_recovery_key:
         try:
-            expected_recovery = settings.effective_account_recovery_key
+            _ = settings.effective_account_recovery_key
         except ValueError as exc:
             raise AppError(
                 status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
                 code="recovery_key_not_configured",
                 message="Out-of-band account recovery is not configured on this server.",
             ) from exc
-        if not expected_recovery or not secrets.compare_digest(x_account_recovery_key, expected_recovery):
+        if not _verify_recovery_secret(x_account_recovery_key, settings):
             raise AppError(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 code="invalid_recovery_authorization",
@@ -136,6 +182,8 @@ def require_device_action_access(
 
 
 def require_restore_access_authorization(
+    device_id: str,
+    request: Request,
     authorization: str | None = Header(default=None, alias="Authorization"),
     x_dev_admin_key: str | None = Header(default=None, alias="X-Dev-Admin-Key"),
     x_account_recovery_key: str | None = Header(default=None, alias="X-Account-Recovery-Key"),
@@ -143,23 +191,63 @@ def require_restore_access_authorization(
 ) -> None:
     """
     Fail-closed authorization guard for restoring a REVOKED device.
-    A REVOKED device MUST NEVER authorize its own restoration using its blocked key or Bearer token.
-    Requires explicit X-Account-Recovery-Key (all environments) or X-Dev-Admin-Key (non-production only).
+    Enforces rate limiting, attempt logging with header redaction, and blocks self-restore via Bearer token.
     """
-    if _has_valid_recovery_or_dev_admin(
-        x_dev_admin_key=x_dev_admin_key,
-        x_account_recovery_key=x_account_recovery_key,
-        settings=settings,
-    ):
-        return
+    client_ip = request.client.host if request.client else "unknown"
+    bucket_key = f"{client_ip}:{device_id}"
+
+    try:
+        _check_recovery_rate_limit(bucket_key)
+    except AppError:
+        security_logger.warning(
+            "recovery_attempt device_id=%s client_ip=%s outcome=RATE_LIMITED header_redacted=true",
+            device_id,
+            client_ip,
+        )
+        raise
+
+    try:
+        if _has_valid_recovery_or_dev_admin(
+            x_dev_admin_key=x_dev_admin_key,
+            x_account_recovery_key=x_account_recovery_key,
+            settings=settings,
+        ):
+            _clear_recovery_failures(bucket_key)
+            security_logger.info(
+                "recovery_attempt device_id=%s client_ip=%s outcome=AUTHORIZED header_redacted=true",
+                device_id,
+                client_ip,
+            )
+            return
+    except AppError as exc:
+        _record_recovery_failure(bucket_key)
+        security_logger.warning(
+            "recovery_attempt device_id=%s client_ip=%s outcome=REJECTED code=%s header_redacted=true",
+            device_id,
+            client_ip,
+            exc.code,
+        )
+        raise
 
     if authorization and authorization.startswith("Bearer "):
+        _record_recovery_failure(bucket_key)
+        security_logger.warning(
+            "recovery_attempt device_id=%s client_ip=%s outcome=REJECTED_BEARER_SELF_RESTORE header_redacted=true",
+            device_id,
+            client_ip,
+        )
         raise AppError(
             status_code=status.HTTP_403_FORBIDDEN,
             code="recovery_authorization_required",
             message="Device self-restoration via Bearer session token is forbidden. Valid recovery authorization is required.",
         )
 
+    _record_recovery_failure(bucket_key)
+    security_logger.warning(
+        "recovery_attempt device_id=%s client_ip=%s outcome=REJECTED_MISSING_AUTH header_redacted=true",
+        device_id,
+        client_ip,
+    )
     raise AppError(
         status_code=status.HTTP_401_UNAUTHORIZED,
         code="recovery_authorization_required",

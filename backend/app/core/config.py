@@ -32,6 +32,10 @@ class Settings(BaseSettings):
         default="ipguard-dev-recovery-secret-key",
         description="Out-of-band account recovery authorization key for restoring REVOKED devices.",
     )
+    account_recovery_key_sha256: str | None = Field(
+        default=None,
+        description="Optional SHA-256 hex digest of the account recovery key so plaintext does not need to reside in env.",
+    )
     notes_master_key_b64: str | None = Field(
         default=None,
         description="Base64 encoded 32-byte master key for Secure Notes encryption.",
@@ -119,16 +123,22 @@ class Settings(BaseSettings):
     @property
     def effective_account_recovery_key(self) -> str:
         """
-        Resolve the out-of-band recovery authorization key.
-        Fails closed in production if unset or still configured with the dev default.
+        Resolve the out-of-band recovery authorization key or digest requirement.
+        Fails closed in production if neither a valid SHA-256 digest nor a strong non-default key is configured.
         """
+        digest = (self.account_recovery_key_sha256 or "").strip().lower()
         key = (self.account_recovery_key or "").strip()
-        if self.app_env == "production" and (
-            not key or key == "ipguard-dev-recovery-secret-key"
-        ):
-            raise ValueError(
-                "CRITICAL: A non-default ACCOUNT_RECOVERY_KEY is mandatory in production environments."
-            )
+        if self.app_env == "production":
+            if digest:
+                if len(digest) != 64 or any(c not in "0123456789abcdef" for c in digest):
+                    raise ValueError(
+                        "CRITICAL: ACCOUNT_RECOVERY_KEY_SHA256 must be a valid 64-character hex digest."
+                    )
+                return ""
+            if not key or key == "ipguard-dev-recovery-secret-key" or len(key) < 32:
+                raise ValueError(
+                    "CRITICAL: A strong non-default ACCOUNT_RECOVERY_KEY (>=32 chars) or ACCOUNT_RECOVERY_KEY_SHA256 is mandatory in production."
+                )
         return key
 
     @property
