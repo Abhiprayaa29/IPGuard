@@ -1,0 +1,23 @@
+flowchart LR
+  subgraph DevHost["Developer / Evaluation Workstation (Windows)"]
+    Vite["Vite Dev/Preview Server (:5173)"]
+    FastAPI["FastAPI Uvicorn (:8000)"]
+    PG[("PostgreSQL 17.11 (:5432)")]
+    VaultDir[("backend/storage/ Encrypted Blobs")]
+  end
+  subgraph PhysicalPhone["Physical Android Device (SM-A546E, Android 16)"]
+    App["IPGuard Authenticator APK"]
+    TEE["Hardware Android Keystore + BiometricPrompt"]
+  end
+  subgraph IsolatedDBs["Isolated Test Databases"]
+    TestDB["ipguard_test / audit_ipguard_test"]
+  end
+  subgraph PlannedCloud["PLANNED Roadmap Only (NOT Deployed)"]
+    M5["Cloud / Docker / M5 Blockchain Anchor"]
+  end
+  Vite --> FastAPI
+  FastAPI --> PG & VaultDir
+  App <-- "adb reverse tcp:8000 / LAN" --> FastAPI
+  App --> TEE
+  FastAPI -.->|"Pytest isolated fixtures"| TestDB
+  FastAPI -.->|"Future deployment target"| M5

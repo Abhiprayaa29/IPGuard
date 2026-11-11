@@ -1,0 +1,59 @@
+erDiagram
+  accounts ||--o{ devices : "account_id FK"
+  accounts ||--o{ auth_sessions : "account_id FK"
+  devices ||--o{ auth_sessions : "device_id nullable FK"
+  devices ||--o{ assets : "device_id FK"
+  assets ||--o{ assets : "source_asset_id self-FK"
+  audit_chain_heads ||--o{ audit_events : "chain_id FK"
+  accounts {
+    varchar account_id PK
+    varchar display_name
+    timestamptz created_at
+  }
+  devices {
+    uuid id PK
+    varchar device_id UK
+    varchar account_id FK
+    text public_key
+    varchar status
+    timestamptz enrolled_at
+    timestamptz revoked_at
+  }
+  auth_sessions {
+    uuid id PK
+    varchar session_token UK
+    varchar account_id FK
+    uuid device_id FK
+    varchar status
+    varchar browser_channel_token_hash
+    timestamptz expires_at
+  }
+  notes {
+    uuid id PK
+    varchar owner_id
+    text title_enc
+    text content_enc
+  }
+  assets {
+    uuid id PK
+    varchar device_id FK
+    varchar storage_key UK
+    varchar sha256_hash
+    varchar nonce
+    varchar integrity_status
+    uuid source_asset_id FK
+    varchar derivative_type
+  }
+  audit_chain_heads {
+    varchar chain_id PK
+    bigint last_sequence
+    varchar last_hash
+  }
+  audit_events {
+    uuid event_id PK
+    varchar chain_id FK
+    bigint sequence
+    bytea canonical_payload
+    varchar prev_hash
+    varchar event_hash
+  }

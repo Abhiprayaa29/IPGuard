@@ -1,0 +1,32 @@
+flowchart TB
+  subgraph Clients["Client Layer"]
+    Web["Web Console (React 19 + TypeScript + Vite)"]
+    Android["Android Authenticator (Kotlin + Jetpack Compose + CameraX)"]
+  end
+  subgraph Hardware["Device Hardware Boundary (Samsung SM-A546E)"]
+    BioWeak["OS BiometricPrompt (BIOMETRIC_WEAK Gate)"]
+    Keystore["AndroidKeyStore ECDSA P-256 + CryptoObject"]
+  end
+  subgraph Backend["FastAPI Core API (Python 3.13)"]
+    AuthAPI["Auth &amp; Device Lifecycle Router"]
+    RecoveryGate["X-Account-Recovery-Key Gate (SHA-256 Constant-Time)"]
+    NotesSvc["Secure Notes (AES-256-GCM + HKDF)"]
+    VaultSvc["Asset Vault (XChaCha20-Poly1305 + Integrity)"]
+    StegoSvc["PNG LSB Steganography + Ed25519"]
+    AuditSvc["Sequential Audit Hash Chain (SHA-256)"]
+  end
+  subgraph Storage["Local Persistence"]
+    PG[("PostgreSQL 17.11 (accounts, devices, auth_sessions, notes, assets, audit_events)")]
+    FS[("Local Encrypted Storage (backend/storage/ ciphertexts)")]
+  end
+  subgraph Planned["PLANNED M5 Roadmap (Not Implemented)"]
+    Chain["External EVM/Merkle Blockchain Anchoring"]
+  end
+  Web <-->|"REST + sessionStorage Bearer"| AuthAPI
+  Android -->|"ECDSA P-256 Signature"| AuthAPI
+  Android --> BioWeak --> Keystore
+  AuthAPI --> NotesSvc & VaultSvc & StegoSvc & AuditSvc
+  RecoveryGate --> AuthAPI
+  AuditSvc --> PG
+  VaultSvc & StegoSvc --> PG & FS
+  AuditSvc -.->|"Planned Batch Anchor"| Chain

@@ -1,0 +1,99 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1136" height="580" viewBox="0 0 1136 580">
+  <defs>
+    <style>
+      .bg { fill: #090e13; }
+      .grid { stroke: #131c25; stroke-width: 1; }
+      .card { fill: #101820; stroke: #22303e; stroke-width: 1.5; rx: 12; }
+      .card-accent { fill: #0e1d1c; stroke: #256859; stroke-width: 1.5; rx: 12; }
+      .card-blue { fill: #0f1924; stroke: #254f73; stroke-width: 1.5; rx: 12; }
+      .card-amber { fill: #1b160d; stroke: #8a611c; stroke-width: 1.5; stroke-dasharray: 6 4; rx: 12; }
+      .card-red { fill: #1c1114; stroke: #7f2932; stroke-width: 1.5; rx: 12; }
+      .subcard { fill: #0c1319; stroke: #1d2a37; stroke-width: 1; rx: 8; }
+      .title { fill: #f1f5f9; font-family: "Segoe UI", Arial, sans-serif; font-size: 24px; font-weight: 700; }
+      .subtitle { fill: #94a3b8; font-family: "Segoe UI", Arial, sans-serif; font-size: 13px; }
+      .h2 { fill: #e2e8f0; font-family: "Segoe UI", Arial, sans-serif; font-size: 15px; font-weight: 700; }
+      .label { fill: #cbd5e1; font-family: "Segoe UI", Arial, sans-serif; font-size: 13px; font-weight: 600; }
+      .txt { fill: #94a3b8; font-family: "Segoe UI", Arial, sans-serif; font-size: 12px; }
+      .mono { fill: #a7f3d0; font-family: Consolas, "Courier New", monospace; font-size: 11.5px; }
+      .mono-dim { fill: #94a3b8; font-family: Consolas, "Courier New", monospace; font-size: 11px; }
+      .pill-text { font-family: Consolas, "Courier New", monospace; font-size: 11px; font-weight: 700; letter-spacing: 0.6px; }
+      .arrow { stroke: #34d399; stroke-width: 2; fill: none; }
+      .arrow-blue { stroke: #38bdf8; stroke-width: 2; fill: none; }
+      .arrow-amber { stroke: #f59e0b; stroke-width: 2; stroke-dasharray: 6 4; fill: none; }
+      .arrow-red { stroke: #f87171; stroke-width: 2; fill: none; }
+      .arrow-muted { stroke: #64748b; stroke-width: 1.6; fill: none; }
+      .step-num { fill: #090e13; font-family: Consolas, "Courier New", monospace; font-size: 11px; font-weight: 700; }
+      .erd-pk { fill: #34d399; font-family: Consolas, monospace; font-size: 11px; font-weight: 700; }
+      .erd-fk { fill: #38bdf8; font-family: Consolas, monospace; font-size: 11px; font-weight: 700; }
+      .erd-col { fill: #cbd5e1; font-family: Consolas, monospace; font-size: 11px; }
+    </style>
+    <marker id="m-emerald" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 1 L 10 5 L 0 9 z" fill="#34d399"/>
+    </marker>
+    <marker id="m-blue" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 1 L 10 5 L 0 9 z" fill="#38bdf8"/>
+    </marker>
+    <marker id="m-amber" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 1 L 10 5 L 0 9 z" fill="#f59e0b"/>
+    </marker>
+    <marker id="m-red" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 1 L 10 5 L 0 9 z" fill="#f87171"/>
+    </marker>
+    <marker id="m-muted" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M 0 1 L 10 5 L 0 9 z" fill="#64748b"/>
+    </marker>
+  </defs>
+  <rect class="bg" width="1136" height="580"/>
+  <!-- subtle grid -->
+  <g opacity="0.45">
+    <line class="grid" x1="40" y1="0" x2="40" y2="580"/><line class="grid" x1="80" y1="0" x2="80" y2="580"/><line class="grid" x1="120" y1="0" x2="120" y2="580"/><line class="grid" x1="160" y1="0" x2="160" y2="580"/><line class="grid" x1="200" y1="0" x2="200" y2="580"/><line class="grid" x1="240" y1="0" x2="240" y2="580"/><line class="grid" x1="280" y1="0" x2="280" y2="580"/><line class="grid" x1="320" y1="0" x2="320" y2="580"/><line class="grid" x1="360" y1="0" x2="360" y2="580"/><line class="grid" x1="400" y1="0" x2="400" y2="580"/><line class="grid" x1="440" y1="0" x2="440" y2="580"/><line class="grid" x1="480" y1="0" x2="480" y2="580"/><line class="grid" x1="520" y1="0" x2="520" y2="580"/><line class="grid" x1="560" y1="0" x2="560" y2="580"/><line class="grid" x1="600" y1="0" x2="600" y2="580"/><line class="grid" x1="640" y1="0" x2="640" y2="580"/><line class="grid" x1="680" y1="0" x2="680" y2="580"/><line class="grid" x1="720" y1="0" x2="720" y2="580"/><line class="grid" x1="760" y1="0" x2="760" y2="580"/><line class="grid" x1="800" y1="0" x2="800" y2="580"/><line class="grid" x1="840" y1="0" x2="840" y2="580"/><line class="grid" x1="880" y1="0" x2="880" y2="580"/><line class="grid" x1="920" y1="0" x2="920" y2="580"/><line class="grid" x1="960" y1="0" x2="960" y2="580"/><line class="grid" x1="1000" y1="0" x2="1000" y2="580"/><line class="grid" x1="1040" y1="0" x2="1040" y2="580"/><line class="grid" x1="1080" y1="0" x2="1080" y2="580"/><line class="grid" x1="1120" y1="0" x2="1120" y2="580"/>
+    <line class="grid" x1="0" y1="40" x2="1136" y2="40"/><line class="grid" x1="0" y1="80" x2="1136" y2="80"/><line class="grid" x1="0" y1="120" x2="1136" y2="120"/><line class="grid" x1="0" y1="160" x2="1136" y2="160"/><line class="grid" x1="0" y1="200" x2="1136" y2="200"/><line class="grid" x1="0" y1="240" x2="1136" y2="240"/><line class="grid" x1="0" y1="280" x2="1136" y2="280"/><line class="grid" x1="0" y1="320" x2="1136" y2="320"/><line class="grid" x1="0" y1="360" x2="1136" y2="360"/><line class="grid" x1="0" y1="400" x2="1136" y2="400"/><line class="grid" x1="0" y1="440" x2="1136" y2="440"/><line class="grid" x1="0" y1="480" x2="1136" y2="480"/><line class="grid" x1="0" y1="520" x2="1136" y2="520"/><line class="grid" x1="0" y1="560" x2="1136" y2="560"/>
+  </g>
+  <!-- Header -->
+  <text x="36" y="42" class="title">Runtime & Deployment Architecture</text>
+  <text x="36" y="64" class="subtitle">Verified local evaluation topology on Windows host + SM-A546E physical Android (no cloud claims)</text>
+  <rect x="900" y="22" width="200" height="28" rx="14" fill="#38bdf8" fill-opacity="0.14" stroke="#38bdf8" stroke-width="1.2"/>
+  <text x="1000" y="40" text-anchor="middle" fill="#38bdf8" class="pill-text">LOCAL EVALUATION BUILD</text>
+  <line x1="36" y1="80" x2="1100" y2="80" stroke="#1e293b" stroke-width="1"/>
+  <rect class="card-blue" x="36" y="110" width="420" height="420" rx="12"/>
+  <line x1="50" y1="142" x2="442" y2="142" stroke="#1f2d3b" stroke-width="1"/>
+  <circle cx="54" cy="128" r="4" fill="#38bdf8"/>
+  <text x="66" y="133" class="h2">Local / Workstation Runtime Host (Verified)</text>
+  <text x="52" y="162" class="mono">Vite React 19 Web Console — 127.0.0.1:5173</text>
+  <text x="52" y="181" class="mono">FastAPI Uvicorn API — 0.0.0.0:8000</text>
+  <text x="52" y="200" class="mono">PostgreSQL 17.11 — 127.0.0.1:5432 (db: ipguard)</text>
+  <text x="52" y="219" class="mono">Local Encrypted Vault — backend/storage/*.enc</text>
+  <text x="52" y="238" class="txt">Alembic Migrations: 0001..0011 applied</text>
+  <text x="52" y="257" class="txt">CORS + Trusted Host strict origin enforcement</text>
+  <text x="52" y="276" class="label">Isolated Test DBs (Never touch live ipguard):</text>
+  <text x="52" y="295" class="mono">  * ipguard_test (API &amp; Playwright captures)</text>
+  <text x="52" y="314" class="mono">  * audit_ipguard_test (tampering &amp; audit tests)</text>
+  <text x="52" y="333" class="txt">Note: No cloud hosting or SaaS DB deployed</text><rect class="card-accent" x="515" y="110" width="325" height="220" rx="12"/>
+  <line x1="529" y1="142" x2="826" y2="142" stroke="#1f2d3b" stroke-width="1"/>
+  <circle cx="533" cy="128" r="4" fill="#34d399"/>
+  <text x="545" y="133" class="h2">Physical Target Device (Verified)</text>
+  <text x="531" y="162" class="label">Model: Samsung Galaxy A54 5G</text>
+  <text x="531" y="181" class="mono">Hardware ID: SM-A546E (Android 16)</text>
+  <text x="531" y="200" class="mono">Tunnel: adb reverse tcp:8000 / tcp:5173</text>
+  <text x="531" y="219" class="txt">TEE Keystore + Native BiometricPrompt</text>
+  <text x="531" y="238" class="txt">Signed APK distributed via GitHub</text><rect class="card" x="515" y="360" width="325" height="170" rx="12"/>
+  <line x1="529" y1="392" x2="826" y2="392" stroke="#1f2d3b" stroke-width="1"/>
+  <circle cx="533" cy="378" r="4" fill="#34d399"/>
+  <text x="545" y="383" class="h2">Production Hardening Controls</text>
+  <text x="531" y="412" class="txt">IPGUARD_ENV=production fails fast if:</text>
+  <text x="531" y="431" class="mono">  * RECOVERY_KEY_PEPPER missing</text>
+  <text x="531" y="450" class="mono">  * MASTER_ENCRYPTION_KEY unset</text>
+  <text x="531" y="469" class="txt">Rate limiting &amp; header redaction active</text><rect class="card-amber" x="870" y="110" width="230" height="420" rx="12"/>
+  <line x1="884" y1="142" x2="1086" y2="142" stroke="#1f2d3b" stroke-width="1"/>
+  <circle cx="888" cy="128" r="4" fill="#f59e0b"/>
+  <text x="900" y="133" class="h2">PLANNED (Not Built)</text>
+  <text x="886" y="162" class="mono">Status: FUTURE ROADMAP</text>
+  <text x="886" y="181" class="label">NOT deployed in M1-M4:</text>
+  <text x="886" y="200" class="txt">* External cloud VM / K8s</text>
+  <text x="886" y="219" class="txt">* S3 / KMS object storage</text>
+  <text x="886" y="238" class="txt">* M5 Merkle Anchor RPC</text>
+  <text x="886" y="257" class="txt">* Public EVM verification</text>
+  <text x="886" y="276" class="txt">Shown strictly for boundary</text>
+  <text x="886" y="295" class="txt">clarity.</text><path class="arrow" d="M 456 210 L 515 210" marker-end="url(#m-emerald)"/><path class="arrow-muted" d="M 840 430 L 870 430" marker-end="url(#m-amber)"/>
+  <text x="36" y="566" class="mono-dim">IPGuard Source-Verified Visual Documentation  |  github.com/Abhiprayaa29/IPGuard</text>
+</svg>
