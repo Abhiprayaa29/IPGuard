@@ -3,6 +3,7 @@ package com.ipguard.authenticator.security
 import android.os.Build
 import android.security.keystore.KeyPermanentlyInvalidatedException
 import android.security.keystore.UserNotAuthenticatedException
+import android.util.Log
 import androidx.biometric.BiometricManager
 import androidx.biometric.BiometricPrompt
 import androidx.core.content.ContextCompat
@@ -165,6 +166,7 @@ class DeviceSigningAuthenticator(
         val callback = object : BiometricPrompt.AuthenticationCallback() {
             override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {
                 super.onAuthenticationSucceeded(result)
+                Log.i(BiometricFaceGateManager.TAG, "KEYSTORE_AUTH_CALLBACK_SUCCEEDED authType=${result.authenticationType}")
                 try {
                     val authorizedSignature = result.cryptoObject?.signature
                         ?: throw IllegalStateException("CryptoObject or Signature missing from AuthenticationResult")
@@ -215,6 +217,7 @@ class DeviceSigningAuthenticator(
 
             override fun onAuthenticationError(errorCode: Int, errString: CharSequence) {
                 super.onAuthenticationError(errorCode, errString)
+                Log.w(BiometricFaceGateManager.TAG, "KEYSTORE_AUTH_CALLBACK_ERROR code=$errorCode msg=$errString")
                 if (errorCode == BiometricPrompt.ERROR_USER_CANCELED ||
                     errorCode == BiometricPrompt.ERROR_NEGATIVE_BUTTON ||
                     errorCode == BiometricPrompt.ERROR_CANCELED
@@ -237,6 +240,7 @@ class DeviceSigningAuthenticator(
 
             override fun onAuthenticationFailed() {
                 super.onAuthenticationFailed()
+                Log.w(BiometricFaceGateManager.TAG, "KEYSTORE_AUTH_CALLBACK_FAILED")
                 onResult(SigningResult.AttemptFailed())
             }
         }

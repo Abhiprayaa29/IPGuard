@@ -38,6 +38,7 @@ import com.ipguard.authenticator.security.qr.QrSessionType
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
@@ -618,6 +619,10 @@ class AuthenticatorViewModel @JvmOverloads constructor(
                             )
                             _uiState.update { current ->
                                 current.copy(
+                                    activeSession = current.activeSession.copy(
+                                        step = AuthFlowStep.AWAITING_DEVICE_AUTHENTICATION,
+                                        statusMessage = getString(R.string.signing_awaiting_auth)
+                                    ),
                                     faceGate = current.faceGate.copy(
                                         status = FaceGateStatus.PASSED,
                                         statusMessage = "Biometric Authentication Successful — Authorize Cryptographic Signing",
@@ -625,7 +630,11 @@ class AuthenticatorViewModel @JvmOverloads constructor(
                                     )
                                 )
                             }
-                            executeCryptoSigningAndSubmit(activity, payload, onCompleted)
+                            viewModelScope.launch {
+                                // Allow the Face Gate BiometricFragment to finish dismissing before launching the Keystore prompt.
+                                delay(450)
+                                executeCryptoSigningAndSubmit(activity, payload, onCompleted)
+                            }
                         }
                         is FaceGateResult.AttemptFailed -> {
                             appendActivity(

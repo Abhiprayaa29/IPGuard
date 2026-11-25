@@ -1,8 +1,9 @@
 # IPGuard — Secure Digital Asset Protection Platform
 
-[![Milestone Status](https://img.shields.io/badge/Status-M0--M4%20Verified%20%26%20Frozen-brightgreen.svg)](#key-features)
-[![Backend Tests](https://img.shields.io/badge/Backend%20Pytest-209%2F209%20PASS%20(100%25)-success.svg)](#testing)
-[![Frontend Build](https://img.shields.io/badge/Frontend%20Build-Vite%20%2F%20React%2019%20PASS-success.svg)](#testing)
+[![Milestone Status](https://img.shields.io/badge/Status-M0--M5%20Implemented%20%26%20Verified-brightgreen.svg)](#key-features--milestone-implementation)
+[![Backend Tests](https://img.shields.io/badge/Backend%20Pytest-234%20PASS%20%7C%201%20SKIP-success.svg)](#testing--quality-verification)
+[![Solidity Tests](https://img.shields.io/badge/Foundry%20Tests-8%2F8%20PASS-success.svg)](#testing--quality-verification)
+[![Frontend Build](https://img.shields.io/badge/Frontend%20Build-Vite%20%2F%20React%2019%20PASS-success.svg)](#testing--quality-verification)
 [![Browser Acceptance](https://img.shields.io/badge/Browser%20Acceptance-Playwright%20PASS-success.svg)](#screenshots--visual-showcase)
 [![Python](https://img.shields.io/badge/Python-3.13.2-blue.svg)](https://www.python.org/)
 [![FastAPI](https://img.shields.io/badge/FastAPI-0.115-teal.svg)](https://fastapi.tiangolo.com/)
@@ -84,6 +85,13 @@ IPGuard establishes a defense-in-depth security model across three synchronized 
 - **Fail-Closed Extraction:** Watermark payloads are strictly withheld (HTTP 409 Conflict) if pixel tampering or signature invalidity is detected.
 - **Web Console Workflow:** Interactive UI in React 19 for upload, watermark configuration, embedding, downloading, verification, and payload extraction.
 
+### Milestone 5 — Hybrid Batch Audit Blockchain Anchoring (IMPLEMENTED & VERIFIED)
+- **Merkle Tree Aggregation:** Deterministic SHA-256 Merkle Tree builder aggregating unanchored `audit_events` sequences into compact 32-byte Merkle roots.
+- **Solidity Batch Registry:** `BatchAnchorRegistry.sol` deployed and tested on local **Anvil EVM** (Chain ID `31337`) and ready for **Ethereum Sepolia**, storing `batchId`, `merkleRoot`, `sequenceFrom`, `sequenceTo`, `eventCount`, and timestamp.
+- **Backend Web3 Integration:** `web3.py` service with Alembic migration `0011_audit_blockchain_anchors` and endpoints `POST /api/v1/blockchain/anchors`, `GET /api/v1/blockchain/anchors`, and `GET /api/v1/blockchain/anchors/{anchor_id}/verify`.
+- **Web Console Panel:** Interactive **Blockchain Audit Anchoring** panel in `/system-status` for batch anchoring, transaction inspection, and live on-chain verification.
+- **Physical Mobile Reliability:** Updated Android `AuthenticatorViewModel` with a clean transition guard between the Stage 1 Face Gate (`BIOMETRIC_WEAK`) and Stage 2 Keystore signing (`BIOMETRIC_STRONG` / `DEVICE_CREDENTIAL`) `BiometricPrompt`, verified end-to-end on physical Samsung Galaxy A54 5G (`SM-A546E`).
+
 ---
 
 ## System Architecture
@@ -139,7 +147,8 @@ flowchart TD
 | :--- | :--- |
 | **Frontend Web Console** | React 19.3.1, Vite 8.3.6, TypeScript 7.0.2, Tailwind CSS 4.3.4, Lucide React, Axios |
 | **Backend Core API** | Python 3.13.2, FastAPI 0.115, Starlette, Uvicorn, Pydantic v2 |
-| **Database & Migrations**| PostgreSQL 17.11, SQLAlchemy 2.0, Psycopg 3, Alembic (Migrations 0001–0009) |
+| **Database & Migrations**| PostgreSQL 17.11, SQLAlchemy 2.0, Psycopg 3, Alembic (Migrations 0001–0011) |
+| **Blockchain & Web3** | Solidity, Foundry (`forge`, `anvil`, `cast`), `web3.py` 8.0, Ethereum Sepolia / Local Anvil |
 | **Cryptographic Suite** | PyCA/Cryptography (Ed25519, XChaCha20-Poly1305, HKDF, SHA-256, ECDSA NIST P-256) |
 | **Image Processing** | Pillow (PIL Fork) 11.x (8-bit truecolor RGB/RGBA raster manipulation) |
 | **Mobile Hardware Client**| Android SDK (API 28–36), Kotlin, Jetpack Compose, Android Keystore, CameraX, ZXing |
@@ -270,9 +279,9 @@ Web Console will be accessible at: `http://127.0.0.1:5173`
    ```
 
 #### Installation & Security Highlights
-- **Private Repository Access:** `Abhiprayaa29/IPGuard` is a private repository; authorized GitHub access is required to download release assets once published.
+- **Public Repository:** Source code and documentation are hosted publicly at [`Abhiprayaa29/IPGuard`](https://github.com/Abhiprayaa29/IPGuard).
 - **Installation Steps (Signed APK):** Download the signed release APK + `SHA256SUMS.txt` from GitHub Releases -> verify SHA-256 -> open APK on Android (API 28+) -> allow installation from the chosen source -> complete One-Time Device Enrollment.
-- **Security Stack:** Android Keystore (`ECDSA P-256`), Native Android `BiometricPrompt`, and QR Challenge-Response Authentication.
+- **Security Stack:** Android Keystore (`ECDSA P-256`), Two-Stage `BiometricPrompt` (Face Gate + Hardware Keystore/Device Credential), and QR Challenge-Response Authentication.
 
 ---
 
@@ -280,12 +289,16 @@ Web Console will be accessible at: `http://127.0.0.1:5173`
 
 IPGuard enforces strict verification across all layers:
 
-### 1. Backend Pytest Test Suite
+### 1. Backend & Blockchain Test Suites
 ```bash
 cd backend
 pytest -v
+
+cd ../blockchain
+forge test -vv
 ```
-* **Status:** **209 passed, 0 failed, 0 skipped** across all M1, M2, M3, and M4 modules.
+* **Backend Status:** **234 passed, 1 skipped, 0 failed** across M1–M5 modules (including 10 Merkle & Blockchain anchoring tests).
+* **Solidity Status:** **8/8 passed** via Foundry `forge test -vv`.
 * **Concurrency:** Includes `test_audit_chain_postgres.py` row-lock serialization across 24 concurrent threads.
 
 ### 2. Frontend Static Check & Production Build
@@ -323,10 +336,9 @@ python ../scripts/m4_browser_acceptance_test.py
 ## Implementation Boundaries & Known Limitations
 
 ### Scope & Implementation Status
-* **Milestones M0–M4:** **Implemented, Verified, and Fully Documented** in this repository.
-* **Milestone 5 (Blockchain Audit Logging):** **Planned Future Roadmap, NOT Implemented.**
+* **Milestones M0–M5:** **Implemented, Verified, and Documented** in this repository (including Hybrid Batch Audit Blockchain Anchoring via Anvil / Sepolia).
 * **Native Face Authentication Gate (`BiometricPrompt` `BIOMETRIC_WEAK`):** **Implemented & Physically Verified** on Samsung Galaxy A54 5G (`SM-A546E`) as a pre-signing gate prior to Android Keystore `CryptoObject` (`BIOMETRIC_STRONG` / `DEVICE_CREDENTIAL`) ECDSA P-256 signing. Public Android API `BIOMETRIC_WEAK` selects strength tier rather than forcing face-only modality on all OEM hardware.
-* **Production Status:** **Verified Engineering Evaluation / Pre-Release Build (`v1.0.0-m0-m4`).** This project is prepared for reproducible evaluation and testing in verified environments; no live production cloud deployment is claimed.
+* **Production Status:** **Verified Engineering Evaluation / Pre-Release Build (`v1.0.0-m0-m5`).** This project is prepared for reproducible evaluation and testing in verified environments; no live production cloud deployment is claimed.
 
 ### Technical & Cryptographic Limitations
 1. **Spatial LSB Fragility:** Spatial LSB steganography is fragile by design. Resizing, cropping, filtering, or lossy re-compression (JPEG/WebP) will alter pixel bits and intentionally invalidate the Ed25519 signature and SHA-256 checksum. It is not robust watermarking.
@@ -339,10 +351,9 @@ python ../scripts/m4_browser_acceptance_test.py
 
 ## Future Roadmap
 
-### Milestone 5 — Blockchain-Based Immutable Audit Logging (PLANNED)
-* **Merkle Tree Aggregation:** Periodic batching of `audit_events` into cryptographic Merkle Trees.
-* **Smart Contract Anchoring:** Publishing Merkle roots to public or consortium EVM blockchains (Ethereum, Polygon, or Arbitrum) for decentralized immutability.
-* **Public Verifier Portal:** Web tool allowing third parties to verify asset hashes against blockchain checkpoints without requiring server access.
+### Future Blockchain & Cloud Enhancements (PLANNED)
+* **Automated Scheduled Anchoring:** Background scheduler / worker for periodic automatic Merkle batch anchoring on Ethereum Sepolia or L2 networks.
+* **Public Verifier Portal:** Standalone verification page allowing external auditors to verify Merkle inclusion proofs without console login.
 
 ### Future Android Client Enhancements (PLANNED)
 * **Remote Attestation:** Keymaster / Keymint certificate chain verification to validate hardware TEE integrity against Google servers.
@@ -376,6 +387,7 @@ GitHub is the central documentation repository for IPGuard. Complete documentati
 * **M2:** [`docs/M2_MASTER_FINAL_AUDIT_REPORT.md`](docs/M2_MASTER_FINAL_AUDIT_REPORT.md) · [`docs/M2_ARCHITECTURE.md`](docs/M2_ARCHITECTURE.md) · [`docs/M2.3A_KEYSTORE_REPORT.md`](docs/M2.3A_KEYSTORE_REPORT.md) · [`docs/ONE_TIME_DEVICE_ENROLLMENT.md`](docs/ONE_TIME_DEVICE_ENROLLMENT.md)
 * **M3:** [`docs/M3_FINAL_SECURITY_REVIEW.md`](docs/M3_FINAL_SECURITY_REVIEW.md) · [`docs/M3_ASSET_VAULT_BROWSER_E2E_REPORT.md`](docs/M3_ASSET_VAULT_BROWSER_E2E_REPORT.md) · [`docs/M3_ALIZA_ASSET_VAULT_INTEGRATION.md`](docs/M3_ALIZA_ASSET_VAULT_INTEGRATION.md)
 * **M4:** [`docs/M4_FINAL_ACCEPTANCE_REPORT.md`](docs/M4_FINAL_ACCEPTANCE_REPORT.md) · [`docs/M4_BROWSER_ACCEPTANCE_REPORT.md`](docs/M4_BROWSER_ACCEPTANCE_REPORT.md) · [`docs/M4_BACKEND_TEST_REPORT.md`](docs/M4_BACKEND_TEST_REPORT.md) · [`docs/M4_FRONTEND_TEST_REPORT.md`](docs/M4_FRONTEND_TEST_REPORT.md)
+* **M5 (Blockchain):** [`docs/M5_BLOCKCHAIN_ANCHORING.md`](docs/M5_BLOCKCHAIN_ANCHORING.md) · [`docs/M5_BLOCKCHAIN_TEST_REPORT.md`](docs/M5_BLOCKCHAIN_TEST_REPORT.md) · [`docs/M5_BLOCKCHAIN_DEMO_GUIDE.md`](docs/M5_BLOCKCHAIN_DEMO_GUIDE.md)
 
 ### Visual Evidence & Acceptance Screenshots
 * 🖼️ [**Browser Acceptance Screenshots Directory (`docs/screenshots/m4_acceptance/`)**](docs/screenshots/m4_acceptance/)
